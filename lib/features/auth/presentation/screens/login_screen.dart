@@ -124,196 +124,167 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   Future<_GoogleSignupSelection?> _showGoogleSignupSheet() async {
-    AppRole selectedRole = AppRole.student;
-    String? inlineError;
+  AppRole selectedRole = AppRole.student;
+  String? inlineError;
 
-    return showDialog<_GoogleSignupSelection>(
-      context: context,
-      useRootNavigator: true,
-      builder: (dialogContext) {
-        final codeController = TextEditingController();
+  return showDialog<_GoogleSignupSelection>(
+    context: context,
+    useRootNavigator: true,
+    builder: (dialogContext) {
+      final codeController = TextEditingController();
 
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            final isCompact = MediaQuery.of(context).size.width < 380;
-            final teacherSelected = selectedRole == AppRole.teacher;
+      return StatefulBuilder(
+        builder: (context, setDialogState) {
+          final teacherSelected = selectedRole == AppRole.teacher;
 
-            return AlertDialog(
-              insetPadding: const EdgeInsets.symmetric(
-                horizontal: 16,
-                vertical: 24,
-              ),
-              title: const Text('Choose account type'),
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Required for first Google sign-up.',
-                      style: TextStyle(color: AppColors.textSecondary),
-                    ),
-                    const SizedBox(height: 14),
-                    if (isCompact)
-                      Column(
-                        children: [
-                          _RoleButton(
-                            title: 'Student',
-                            subtitle: 'Learn lessons and quizzes',
-                            isSelected: selectedRole == AppRole.student,
-                            onTap: () {
-                              setDialogState(() {
-                                selectedRole = AppRole.student;
-                                inlineError = null;
-                                codeController.clear();
-                              });
-                            },
-                          ),
-                          const SizedBox(height: 10),
-                          _RoleButton(
-                            title: 'Teacher',
-                            subtitle: 'Manage lessons and class',
-                            isSelected: teacherSelected,
-                            onTap: () {
-                              setDialogState(() {
-                                selectedRole = AppRole.teacher;
-                                inlineError = null;
-                              });
-                            },
-                          ),
-                        ],
-                      )
-                    else
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _RoleButton(
-                              title: 'Student',
-                              subtitle: 'Learn lessons and quizzes',
-                              isSelected: selectedRole == AppRole.student,
-                              onTap: () {
-                                setDialogState(() {
-                                  selectedRole = AppRole.student;
-                                  inlineError = null;
-                                  codeController.clear();
-                                });
-                              },
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: _RoleButton(
-                              title: 'Teacher',
-                              subtitle: 'Manage lessons and class',
-                              isSelected: teacherSelected,
-                              onTap: () {
-                                setDialogState(() {
-                                  selectedRole = AppRole.teacher;
-                                  inlineError = null;
-                                });
-                              },
-                            ),
-                          ),
-                        ],
+          return AlertDialog(
+            insetPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 24,
+            ),
+            title: const Text('Choose account type'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Required for first Google sign-up.',
+                    style: TextStyle(color: AppColors.textSecondary),
+                  ),
+                  const SizedBox(height: 14),
+                  Column(
+                    children: [
+                      SizedBox(
+                        width: double.infinity,
+                        child: _RoleButton(
+                          title: 'Student',
+                          subtitle: 'Learn lessons and quizzes',
+                          isSelected: selectedRole == AppRole.student,
+                          onTap: () {
+                            setDialogState(() {
+                              selectedRole = AppRole.student;
+                              inlineError = null;
+                              codeController.clear();
+                            });
+                          },
+                        ),
                       ),
-                    AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 220),
-                      child: teacherSelected
-                          ? Padding(
-                              key: const ValueKey('teacher_code_field'),
-                              padding: const EdgeInsets.only(top: 12),
-                              child: TextField(
-                                controller: codeController,
-                                textInputAction: TextInputAction.done,
-                                decoration: const InputDecoration(
-                                  hintText: 'Teacher invite code',
-                                  prefixIcon: Icon(
-                                    Icons.verified_user_outlined,
-                                  ),
-                                ),
-                                onSubmitted: (_) {
-                                  final code = codeController.text.trim();
-                                  if (code.isEmpty) {
-                                    setDialogState(() {
-                                      inlineError =
-                                          'Teacher invite code is required.';
-                                    });
-                                    return;
-                                  }
-
-                                  FocusManager.instance.primaryFocus?.unfocus();
-
-                                  Navigator.of(dialogContext).pop(
-                                    _GoogleSignupSelection(
-                                      role: AppRole.teacher,
-                                      teacherAccessCode: code,
-                                    ),
-                                  );
-                                },
-                              ),
-                            )
-                          : const SizedBox.shrink(
-                              key: ValueKey('teacher_code_empty'),
-                            ),
-                    ),
-                    if (inlineError != null) ...[
-                      const SizedBox(height: 8),
-                      Text(
-                        inlineError!,
-                        style: const TextStyle(
-                          color: AppColors.error,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
+                      const SizedBox(height: 10),
+                      SizedBox(
+                        width: double.infinity,
+                        child: _RoleButton(
+                          title: 'Teacher',
+                          subtitle: 'Manage lessons and class',
+                          isSelected: teacherSelected,
+                          onTap: () {
+                            setDialogState(() {
+                              selectedRole = AppRole.teacher;
+                              inlineError = null;
+                            });
+                          },
                         ),
                       ),
                     ],
+                  ),
+                  AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 220),
+                    child: teacherSelected
+                        ? Padding(
+                            key: const ValueKey('teacher_code_field'),
+                            padding: const EdgeInsets.only(top: 12),
+                            child: TextField(
+                              controller: codeController,
+                              textInputAction: TextInputAction.done,
+                              decoration: const InputDecoration(
+                                hintText: 'Teacher invite code',
+                                prefixIcon: Icon(
+                                  Icons.verified_user_outlined,
+                                ),
+                              ),
+                              onSubmitted: (_) {
+                                final code = codeController.text.trim();
+                                if (code.isEmpty) {
+                                  setDialogState(() {
+                                    inlineError =
+                                        'Teacher invite code is required.';
+                                  });
+                                  return;
+                                }
+
+                                FocusManager.instance.primaryFocus?.unfocus();
+
+                                Navigator.of(dialogContext).pop(
+                                  _GoogleSignupSelection(
+                                    role: AppRole.teacher,
+                                    teacherAccessCode: code,
+                                  ),
+                                );
+                              },
+                            ),
+                          )
+                        : const SizedBox.shrink(
+                            key: ValueKey('teacher_code_empty'),
+                          ),
+                  ),
+                  if (inlineError != null) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      inlineError!,
+                      style: const TextStyle(
+                        color: AppColors.error,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                   ],
-                ),
+                ],
               ),
-              actions: [
-                TextButton(
-                  onPressed: () {
-                    FocusManager.instance.primaryFocus?.unfocus();
-                    Navigator.of(dialogContext).pop();
-                  },
-                  child: const Text('Cancel'),
-                ),
-                ElevatedButton(
-                  onPressed: () {
-                    FocusManager.instance.primaryFocus?.unfocus();
+            ),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  FocusManager.instance.primaryFocus?.unfocus();
+                  Navigator.of(dialogContext).pop();
+                },
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  FocusManager.instance.primaryFocus?.unfocus();
 
-                    if (selectedRole == AppRole.teacher) {
-                      final code = codeController.text.trim();
+                  if (selectedRole == AppRole.teacher) {
+                    final code = codeController.text.trim();
 
-                      if (code.isEmpty) {
-                        setDialogState(() {
-                          inlineError = 'Teacher invite code is required.';
-                        });
-                        return;
-                      }
-
-                      Navigator.of(dialogContext).pop(
-                        _GoogleSignupSelection(
-                          role: AppRole.teacher,
-                          teacherAccessCode: code,
-                        ),
-                      );
+                    if (code.isEmpty) {
+                      setDialogState(() {
+                        inlineError = 'Teacher invite code is required.';
+                      });
                       return;
                     }
 
-                    Navigator.of(
-                      dialogContext,
-                    ).pop(const _GoogleSignupSelection(role: AppRole.student));
-                  },
-                  child: const Text('Continue'),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-  }
+                    Navigator.of(dialogContext).pop(
+                      _GoogleSignupSelection(
+                        role: AppRole.teacher,
+                        teacherAccessCode: code,
+                      ),
+                    );
+                    return;
+                  }
+
+                  Navigator.of(dialogContext).pop(
+                    const _GoogleSignupSelection(role: AppRole.student),
+                  );
+                },
+                child: const Text('Continue'),
+              ),
+            ],
+          );
+        },
+      );
+    },
+  );
+}
 
   @override
   Widget build(BuildContext context) {
