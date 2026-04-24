@@ -1,0 +1,140 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return signedIn() && request.auth.uid == userId;
+    }
+
+    function hasUserProfile() {
+      return signedIn() &&
+          exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function myUserDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function myRole() {
+      return hasUserProfile() ? myUserDoc().data.role : null;
+    }
+
+    function isAdmin() {
+      return myRole() == 'admin';
+    }
+
+    function isTeacher() {
+      return myRole() == 'teacher';
+    }
+
+    function isTeacherOrAdmin() {
+      return isTeacher() || isAdmin();
+    }
+
+    function isSeedAdminEmail() {
+      return signedIn() && request.auth.token.email == 'admin@earthscience.app';
+    }
+
+    function validRole(role) {
+      return role in ['student', 'teacher', 'admin'];
+    }
+
+    function teacherInvitePath(inviteId) {
+      return /databases/$(database)/documents/teacher_invite_codes/$(inviteId);
+    }
+
+    function validTeacherInviteForCreate() {
+      return request.resource.data.teacherInviteCodeId is string &&
+          request.resource.data.teacherInviteCodeId.size() > 0 &&
+          exists(teacherInvitePath(request.resource.data.teacherInviteCodeId)) &&
+          get(teacherInvitePath(request.resource.data.teacherInviteCodeId)).data.usedByUserId == request.auth.uid &&
+          get(teacherInvitePath(request.resource.data.teacherInviteCodeId)).data.isActive == false;
+    }
+
+    match /users/{userId} {
+      allow get: if isOwner(userId) || isTeacherOrAdmin();
+      allow list: if isTeacherOrAdmin();
+
+      allow create: if isOwner(userId) &&
+          request.resource.data.uid == request.auth.uid &&
+          validRole(request.resource.data.role) &&
+          (
+            request.resource.data.role == 'student' ||
+            (request.resource.data.role == 'teacher' && validTeacherInviteForCreate()) ||
+            (request.resource.data.role == 'admin' &&
+                isSeedAdminEmail() &&
+                request.resource.data.adminSetupApproved == true)
+          );
+
+      allow update: if isAdmin() ||
+          (isOwner(userId) &&
+              request.resource.data.uid == resource.data.uid &&
+              request.resource.data.role == resource.data.role &&
+              request.resource.data.createdAt == resource.data.createdAt);
+
+      allow delete: if isAdmin();
+    }
+
+    match /teacher_invite_codes/{inviteId} {
+      allow get, list: if isAdmin() || signedIn();
+      allow create, delete: if isAdmin();
+
+      allow update: if isAdmin() ||
+          (
+            signedIn() &&
+            resource.data.usedByUserId == '' &&
+            resource.data.isActive == true &&
+            request.resource.data.usedByUserId == request.auth.uid &&
+            request.resource.data.isActive == false &&
+            request.resource.data.code == resource.data.code &&
+            request.resource.data.createdAt == resource.data.createdAt &&
+            request.resource.data.createdBy == resource.data.createdBy
+          );
+    }
+
+    match /lessons/{lessonId} {
+      allow read: if signedIn();
+      allow create, update, delete: if isTeacherOrAdmin();
+    }
+
+    match /quizzes/{quizId} {
+      allow read: if signedIn();
+      allow create, update, delete: if isTeacherOrAdmin();
+    }
+
+    match /challenges/{challengeId} {
+      allow read: if signedIn();
+      allow create, update, delete: if isTeacherOrAdmin();
+    }
+
+    match /achievements/{achievementId} {
+      allow read: if signedIn();
+      allow create, update, delete: if isTeacherOrAdmin();
+    }
+
+    match /progress/{userId} {
+      allow get: if isOwner(userId) || isTeacherOrAdmin();
+      allow list: if isTeacherOrAdmin();
+      allow create, update: if isOwner(userId) || isTeacherOrAdmin();
+      allow delete: if isAdmin();
+    }
+
+    match /lesson_exemplars/{exemplarId} {
+      allow read: if signedIn();
+      allow create, update, delete: if isTeacherOrAdmin();
+    }
+
+    match /feedback_or_evaluation/{feedbackId} {
+      allow create: if signedIn();
+      allow read: if isTeacherOrAdmin();
+      allow update, delete: if isAdmin();
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

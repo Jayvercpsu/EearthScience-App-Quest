@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "576747306039",
+    "project_id": "earth-science-ba100",
+    "storage_bucket": "earth-science-ba100.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:576747306039:android:f1d939b850becbdd0753b2",
+        "android_client_info": {
+          "package_name": "com.company.earth_science"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "576747306039-eudrvnt2nkok5ku4l568pjqbubugkf7f.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.company.earth_science",
+            "certificate_hash": "f63da91a4b4e14ee6b1e8ac435c670558893d37a"
+          }
+        },
+        {
+          "client_id": "576747306039-n6ihiuvupd7h2eoq5l4psruv8fabgcjj.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDZGoJFAGRossb4yAjNd4XNIkw7QJa5Zy0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "576747306039-n6ihiuvupd7h2eoq5l4psruv8fabgcjj.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
