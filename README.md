@@ -128,4 +128,3 @@ lib/
 
 - The app includes local fallback data paths so UI and flows remain testable when Firebase is not yet configured.
 - For deployment, complete Firebase setup and replace seeded content with production content pipelines.
-# EearthScience-App-Quest

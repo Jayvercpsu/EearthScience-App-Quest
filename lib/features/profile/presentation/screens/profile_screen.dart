@@ -157,39 +157,26 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       context: context,
       useRootNavigator: true,
       builder: (dialogContext) {
-        final isCompact = MediaQuery.of(dialogContext).size.width < 360;
-        final actions = [
-          OutlinedButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFDC2626),
-            ),
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('Logout'),
-          ),
-        ];
-
         return AlertDialog(
           title: const Text('Logout Account'),
           content: const Text(
             'Are you sure you want to logout from your student account?',
           ),
-          actions: isCompact
-              ? [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      actions[0],
-                      const SizedBox(height: 8),
-                      actions[1],
-                    ],
-                  ),
-                ]
-              : actions,
+          actionsAlignment: MainAxisAlignment.end,
+          actionsOverflowAlignment: OverflowBarAlignment.end,
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFFDC2626),
+              ),
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('Logout'),
+            ),
+          ],
         );
       },
     );

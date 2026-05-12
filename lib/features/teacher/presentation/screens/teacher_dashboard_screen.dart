@@ -26,7 +26,14 @@ class TeacherDashboardScreen extends ConsumerWidget {
             Container(
               padding: const EdgeInsets.all(AppSpacing.lg),
               decoration: BoxDecoration(
-                gradient: AppColors.heroGradient,
+                image: const DecorationImage(
+                  image: AssetImage('assets/images/galaxy.jpg'),
+                  fit: BoxFit.cover,
+                  colorFilter: ColorFilter.mode(
+                    Color(0x9E0B3C8A),
+                    BlendMode.darken,
+                  ),
+                ),
                 borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
               ),
               child: const Column(
@@ -98,25 +105,6 @@ class TeacherDashboardScreen extends ConsumerWidget {
               },
               loading: () => const SizedBox(height: 90, child: LoadingWidget()),
               error: (_, __) => const SizedBox.shrink(),
-            ),
-            const SizedBox(height: AppSpacing.lg),
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(AppSpacing.md),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Research-Ready Notes',
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
-                    const SizedBox(height: AppSpacing.xs),
-                    const Text(
-                      'This module is structured for alpha and beta testing with focus on engagement, functionality, aesthetics, information quality, vocabulary mastery, and conceptual understanding.',
-                    ),
-                  ],
-                ),
-              ),
             ),
           ],
         ),

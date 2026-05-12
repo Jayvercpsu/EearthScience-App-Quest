@@ -1,3 +1,5 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 class Lesson {
   const Lesson({
     required this.lessonId,
@@ -9,8 +11,14 @@ class Lesson {
     required this.vocabularyTerms,
     required this.competencyTag,
     required this.bannerUrl,
+    required this.estimatedMinutes,
+    required this.resourceLinks,
+    required this.isPublished,
     required this.createdBy,
     required this.createdAt,
+    this.supplementFileUrl = '',
+    this.supplementFileName = '',
+    this.supplementFileType = '',
   });
 
   final String lessonId;
@@ -22,8 +30,14 @@ class Lesson {
   final List<String> vocabularyTerms;
   final String competencyTag;
   final String bannerUrl;
+  final int estimatedMinutes;
+  final List<String> resourceLinks;
+  final bool isPublished;
   final String createdBy;
   final DateTime createdAt;
+  final String supplementFileUrl;
+  final String supplementFileName;
+  final String supplementFileType;
 
   Lesson copyWith({
     String? lessonId,
@@ -35,8 +49,14 @@ class Lesson {
     List<String>? vocabularyTerms,
     String? competencyTag,
     String? bannerUrl,
+    int? estimatedMinutes,
+    List<String>? resourceLinks,
+    bool? isPublished,
     String? createdBy,
     DateTime? createdAt,
+    String? supplementFileUrl,
+    String? supplementFileName,
+    String? supplementFileType,
   }) {
     return Lesson(
       lessonId: lessonId ?? this.lessonId,
@@ -48,8 +68,14 @@ class Lesson {
       vocabularyTerms: vocabularyTerms ?? this.vocabularyTerms,
       competencyTag: competencyTag ?? this.competencyTag,
       bannerUrl: bannerUrl ?? this.bannerUrl,
+      estimatedMinutes: estimatedMinutes ?? this.estimatedMinutes,
+      resourceLinks: resourceLinks ?? this.resourceLinks,
+      isPublished: isPublished ?? this.isPublished,
       createdBy: createdBy ?? this.createdBy,
       createdAt: createdAt ?? this.createdAt,
+      supplementFileUrl: supplementFileUrl ?? this.supplementFileUrl,
+      supplementFileName: supplementFileName ?? this.supplementFileName,
+      supplementFileType: supplementFileType ?? this.supplementFileType,
     );
   }
 
@@ -64,8 +90,14 @@ class Lesson {
       'vocabularyTerms': vocabularyTerms,
       'competencyTag': competencyTag,
       'bannerUrl': bannerUrl,
+      'estimatedMinutes': estimatedMinutes,
+      'resourceLinks': resourceLinks,
+      'isPublished': isPublished,
       'createdBy': createdBy,
       'createdAt': createdAt.millisecondsSinceEpoch,
+      'supplementFileUrl': supplementFileUrl,
+      'supplementFileName': supplementFileName,
+      'supplementFileType': supplementFileType,
     };
   }
 
@@ -84,11 +116,30 @@ class Lesson {
           .toList(),
       competencyTag: map['competencyTag'] as String? ?? 'Concept Mastery',
       bannerUrl: map['bannerUrl'] as String? ?? '',
+      estimatedMinutes: (map['estimatedMinutes'] as num?)?.toInt() ?? 40,
+      resourceLinks: (map['resourceLinks'] as List<dynamic>? ?? const [])
+          .map((item) => item.toString())
+          .where((item) => item.trim().isNotEmpty)
+          .toList(),
+      isPublished: map['isPublished'] as bool? ?? true,
       createdBy: map['createdBy'] as String? ?? '',
-      createdAt: DateTime.fromMillisecondsSinceEpoch(
-        (map['createdAt'] as num?)?.toInt() ??
-            DateTime.now().millisecondsSinceEpoch,
-      ),
+      createdAt: _parseDateTime(map['createdAt']),
+      supplementFileUrl: map['supplementFileUrl'] as String? ?? '',
+      supplementFileName: map['supplementFileName'] as String? ?? '',
+      supplementFileType: map['supplementFileType'] as String? ?? '',
     );
   }
+}
+
+DateTime _parseDateTime(dynamic value) {
+  if (value is Timestamp) {
+    return value.toDate();
+  }
+  if (value is num) {
+    return DateTime.fromMillisecondsSinceEpoch(value.toInt());
+  }
+  if (value is String) {
+    return DateTime.tryParse(value) ?? DateTime.now();
+  }
+  return DateTime.now();
 }

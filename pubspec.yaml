@@ -1,4 +1,4 @@
-name: earth_science_gamified_app
+name: earth_science_gamified
 description: "Earth Science Gamified Mobile App for research-based instruction."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
@@ -40,9 +40,12 @@ dependencies:
   firebase_storage: ^12.4.6
   google_sign_in: ^6.3.0
   google_fonts: ^6.3.0
+  image_picker: ^1.1.2
+  file_picker: ^10.3.3
   shared_preferences: ^2.5.3
   intl: ^0.20.2
   confetti: ^0.8.0
+  audioplayers: ^6.4.0
 
 dev_dependencies:
   flutter_test:
@@ -72,6 +75,11 @@ flutter:
     - assets/illustrations/
     - assets/icons/
     - assets/logo/
+    - assets/images/
+    - assets/lib/images/
+    - assets/games/
+    - assets/games/rock-cycle/
+    - assets/sound-fx/
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

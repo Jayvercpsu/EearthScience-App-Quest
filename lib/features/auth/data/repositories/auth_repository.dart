@@ -2,23 +2,17 @@ import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:google_sign_in/google_sign_in.dart';
 
 import '../../../../core/services/firestore_paths.dart';
 import '../models/app_user.dart';
 
 class AuthRepository {
-  AuthRepository({
-    FirebaseAuth? auth,
-    FirebaseFirestore? firestore,
-    GoogleSignIn? googleSignIn,
-  }) : _auth = auth ?? FirebaseAuth.instance,
-       _firestore = firestore ?? FirebaseFirestore.instance,
-       _googleSignIn = googleSignIn ?? GoogleSignIn();
+  AuthRepository({FirebaseAuth? auth, FirebaseFirestore? firestore})
+    : _auth = auth ?? FirebaseAuth.instance,
+      _firestore = firestore ?? FirebaseFirestore.instance;
 
   final FirebaseAuth _auth;
   final FirebaseFirestore _firestore;
-  final GoogleSignIn _googleSignIn;
 
   static const String _teacherAccessCode = String.fromEnvironment(
     'TEACHER_ACCESS_CODE',
@@ -131,6 +125,7 @@ class AuthRepository {
       );
 
       final userMap = user.toMap();
+      userMap['localPasswordHash'] = _hashPassword(password);
       if (role == AppRole.teacher && teacherInvite != null) {
         userMap['teacherInviteCode'] = teacherInvite.code;
         userMap['invitedAt'] = DateTime.now().millisecondsSinceEpoch;
@@ -210,6 +205,16 @@ class AuthRepository {
         }
         return _createOrLoadSeedAdminAccount();
       }
+
+      final localFallback = await _tryLocalPasswordLogin(
+        email: normalizedEmail,
+        password: password,
+      );
+      if (localFallback != null) {
+        _localUser = localFallback;
+        return localFallback;
+      }
+
       throw Exception(_friendlyEmailLoginError(error));
     }
 
@@ -281,6 +286,47 @@ class AuthRepository {
     return fallback;
   }
 
+  Future<AppUser> updateCurrentUserEmail(String email) async {
+    final normalizedEmail = email.trim().toLowerCase();
+    if (normalizedEmail.isEmpty || !normalizedEmail.contains('@')) {
+      throw Exception('Enter a valid email address.');
+    }
+
+    final authUser = _auth.currentUser;
+    if (authUser == null) {
+      throw Exception('Please login again to update email.');
+    }
+
+    await _firestore.collection(FirestorePaths.users).doc(authUser.uid).set({
+      'email': normalizedEmail,
+    }, SetOptions(merge: true));
+
+    final existing = await _firestore
+        .collection(FirestorePaths.users)
+        .doc(authUser.uid)
+        .get();
+    if (existing.exists && existing.data() != null) {
+      final updated = AppUser.fromMap(existing.data()!);
+      _localUser = updated;
+      return updated;
+    }
+
+    final fallback =
+        _localUser?.copyWith(email: normalizedEmail) ??
+        AppUser(
+          uid: authUser.uid,
+          name: authUser.displayName ?? 'Learner',
+          email: normalizedEmail,
+          role: AppRole.student,
+          xp: 0,
+          level: 1,
+          streak: 0,
+          createdAt: DateTime.now(),
+        );
+    _localUser = fallback;
+    return fallback;
+  }
+
   Future<void> updateCurrentUserPassword(String newPassword) async {
     final trimmed = newPassword.trim();
     if (trimmed.length < 6) {
@@ -288,157 +334,86 @@ class AuthRepository {
     }
 
     final authUser = _auth.currentUser;
-    if (authUser == null) {
+    if (authUser == null && _localUser == null) {
       throw Exception('Please login again to change password.');
     }
 
-    try {
-      await authUser.updatePassword(trimmed);
-    } on FirebaseAuthException catch (error) {
-      if (error.code == 'requires-recent-login') {
+    if (authUser != null) {
+      try {
+        await authUser.updatePassword(trimmed);
+      } on FirebaseAuthException catch (error) {
+        if (error.code == 'requires-recent-login') {
+          throw Exception(
+            'For security, please logout then login again before changing password.',
+          );
+        }
         throw Exception(
-          'For security, please logout then login again before changing password.',
+          'Unable to update password (${error.code}). Please try again.',
         );
       }
-      throw Exception(
-        'Unable to update password (${error.code}). Please try again.',
-      );
+    }
+
+    final targetUserId = authUser?.uid ?? _localUser!.uid;
+    await _firestore.collection(FirestorePaths.users).doc(targetUserId).set({
+      'localPasswordHash': _hashPassword(trimmed),
+      'passwordUpdatedAt': DateTime.now().millisecondsSinceEpoch,
+    }, SetOptions(merge: true));
+  }
+
+  Future<bool> verifyRegisteredEmail(String email) async {
+    final normalizedEmail = email.trim().toLowerCase();
+    if (normalizedEmail.isEmpty || !normalizedEmail.contains('@')) {
+      throw Exception('Enter a valid email address.');
+    }
+
+    try {
+      final snapshot = await _firestore
+          .collection(FirestorePaths.users)
+          .where('email', isEqualTo: normalizedEmail)
+          .limit(1)
+          .get();
+      return snapshot.docs.isNotEmpty;
+    } catch (_) {
+      return false;
     }
   }
 
-  Future<AppUser> signInWithGoogle({
-    AppRole? preferredRole,
-    String? teacherAccessCode,
+  Future<void> resetPasswordWithoutEmailVerification({
+    required String email,
+    required String newPassword,
   }) async {
-    try {
-      await _googleSignIn.signOut();
+    final normalizedEmail = email.trim().toLowerCase();
+    final trimmedPassword = newPassword.trim();
 
-      final googleUser = await _googleSignIn.signIn().timeout(
-        const Duration(seconds: 25),
-      );
-      if (googleUser == null) {
-        throw Exception('Google sign-in was cancelled.');
+    if (normalizedEmail.isEmpty || !normalizedEmail.contains('@')) {
+      throw Exception('Enter a valid email address.');
+    }
+    if (trimmedPassword.length < 6) {
+      throw Exception('Password must be at least 6 characters.');
+    }
+
+    final query = await _firestore
+        .collection(FirestorePaths.users)
+        .where('email', isEqualTo: normalizedEmail)
+        .limit(1)
+        .get();
+    if (query.docs.isEmpty) {
+      throw Exception('Email not found.');
+    }
+
+    final userId = query.docs.first.id;
+    await _firestore.collection(FirestorePaths.users).doc(userId).set({
+      'localPasswordHash': _hashPassword(trimmedPassword),
+      'passwordUpdatedAt': DateTime.now().millisecondsSinceEpoch,
+    }, SetOptions(merge: true));
+
+    final current = _auth.currentUser;
+    if (current != null && current.email?.toLowerCase() == normalizedEmail) {
+      try {
+        await current.updatePassword(trimmedPassword);
+      } catch (_) {
+        // Fallback mode remains valid via local password hash.
       }
-
-      final googleAuth = await googleUser.authentication.timeout(
-        const Duration(seconds: 20),
-      );
-      if (googleAuth.idToken == null) {
-        throw Exception(
-          'Google sign-in failed: missing ID token. Check Firebase SHA keys and google-services.json.',
-        );
-      }
-      final credential = GoogleAuthProvider.credential(
-        accessToken: googleAuth.accessToken,
-        idToken: googleAuth.idToken,
-      );
-
-      final userCredential = await _auth
-          .signInWithCredential(credential)
-          .timeout(const Duration(seconds: 20));
-      final firebaseUser = userCredential.user!;
-
-      final docRef = _firestore
-          .collection(FirestorePaths.users)
-          .doc(firebaseUser.uid);
-      final existing = await docRef.get();
-      final normalizedGoogleEmail = (firebaseUser.email ?? '')
-          .trim()
-          .toLowerCase();
-
-      if (existing.exists && existing.data() != null) {
-        final existingMap = existing.data()!;
-        final existingUser = AppUser.fromMap(existingMap);
-        await _ensureAccountCanAccessApp(
-          user: existingUser,
-          userMap: existingMap,
-        );
-        _localUser = existingUser;
-        return existingUser;
-      }
-
-      if (normalizedGoogleEmail.isNotEmpty) {
-        final emailMatch = await _firestore
-            .collection(FirestorePaths.users)
-            .where('email', isEqualTo: normalizedGoogleEmail)
-            .limit(1)
-            .get();
-        if (emailMatch.docs.isNotEmpty &&
-            emailMatch.docs.first.id != firebaseUser.uid) {
-          final existingRole = AppRoleX.fromValue(
-            emailMatch.docs.first.data()['role'] as String? ?? 'student',
-          );
-          throw Exception(
-            'This email is already registered as ${existingRole.value}. Please sign in using your original method first.',
-          );
-        }
-      }
-
-      if (preferredRole == null) {
-        throw Exception(
-          'Please choose Student or Teacher account first before Google sign-in.',
-        );
-      }
-      if (preferredRole == AppRole.admin) {
-        throw Exception(
-          'Admin accounts cannot be created with Google sign-in.',
-        );
-      }
-
-      final teacherInvite = await _validateTeacherInviteForRole(
-        role: preferredRole,
-        teacherAccessCode: teacherAccessCode,
-      );
-
-      if (preferredRole == AppRole.teacher && teacherInvite?.docId != null) {
-        try {
-          await _consumeTeacherInviteCode(
-            inviteDocId: teacherInvite!.docId!,
-            userId: firebaseUser.uid,
-          );
-        } catch (error) {
-          await firebaseUser.delete();
-          throw Exception(error.toString().replaceFirst('Exception: ', ''));
-        }
-      }
-
-      final map = {
-        'uid': firebaseUser.uid,
-        'name': firebaseUser.displayName ?? 'Earth Learner',
-        'email': normalizedGoogleEmail,
-        'role': preferredRole.value,
-        'xp': 0,
-        'level': 1,
-        'streak': 0,
-        'createdAt': DateTime.now().millisecondsSinceEpoch,
-        if (preferredRole == AppRole.teacher && teacherInvite != null) ...{
-          'teacherInviteCode': teacherInvite.code,
-          'invitedAt': DateTime.now().millisecondsSinceEpoch,
-          if (teacherInvite.docId != null)
-            'teacherInviteCodeId': teacherInvite.docId,
-        },
-      };
-
-      await docRef.set(map, SetOptions(merge: true));
-
-      final user = AppUser.fromMap(map);
-      _localUser = user;
-      return user;
-    } on FirebaseAuthException catch (error) {
-      if (error.code == 'account-exists-with-different-credential') {
-        throw Exception(
-          'This email is already linked to another sign-in method. Please use Email/Password first.',
-        );
-      }
-      throw Exception(
-        'Google sign-in failed (${error.code}). Make sure Google Sign-In is enabled and SHA fingerprints are added in Firebase.',
-      );
-    } on TimeoutException {
-      throw Exception(
-        'Google sign-in timed out. Please check internet connection and try again.',
-      );
-    } catch (error) {
-      throw Exception(error.toString().replaceFirst('Exception: ', ''));
     }
   }
 
@@ -695,6 +670,44 @@ class AuthRepository {
     return 'Login failed (${error.code}). Please try again.';
   }
 
+  Future<AppUser?> _tryLocalPasswordLogin({
+    required String email,
+    required String password,
+  }) async {
+    try {
+      final snapshot = await _firestore
+          .collection(FirestorePaths.users)
+          .where('email', isEqualTo: email)
+          .limit(1)
+          .get();
+      if (snapshot.docs.isEmpty) {
+        return null;
+      }
+
+      final map = snapshot.docs.first.data();
+      final storedHash = (map['localPasswordHash'] as String? ?? '').trim();
+      if (storedHash.isEmpty) {
+        return null;
+      }
+      if (storedHash != _hashPassword(password)) {
+        return null;
+      }
+
+      return AppUser.fromMap(map);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  String _hashPassword(String password) {
+    final normalized = password.trim();
+    int hash = 5381;
+    for (final codeUnit in normalized.codeUnits) {
+      hash = ((hash << 5) + hash) ^ codeUnit;
+    }
+    return hash.abs().toRadixString(16);
+  }
+
   Future<void> sendPasswordReset(String email) async {
     try {
       await _auth.sendPasswordResetEmail(email: email);
@@ -706,7 +719,6 @@ class AuthRepository {
   Future<void> signOut() async {
     try {
       await _auth.signOut();
-      await _googleSignIn.signOut();
     } catch (_) {
       // local mode
     }

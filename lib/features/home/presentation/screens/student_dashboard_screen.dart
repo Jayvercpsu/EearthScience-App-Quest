@@ -4,24 +4,34 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_spacing.dart';
+import '../../../../core/constants/app_strings.dart';
 import '../../../../shared/animations/fade_slide_in.dart';
 import '../../../../shared/widgets/lesson_topic_artwork.dart';
 import '../../../../shared/widgets/loading_widget.dart';
+import '../../../notifications/providers/notification_providers.dart';
 import '../../providers/home_providers.dart';
 import '../../../lessons/providers/lesson_providers.dart';
 import '../../../progress/providers/progress_providers.dart';
 
 class StudentDashboardScreen extends ConsumerWidget {
-  const StudentDashboardScreen({required this.onOpenLessons, super.key});
+  const StudentDashboardScreen({
+    required this.onOpenLessons,
+    required this.onLogout,
+    this.isSigningOut = false,
+    super.key,
+  });
 
   final VoidCallback onOpenLessons;
+  final VoidCallback onLogout;
+  final bool isSigningOut;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final greetingAsync = ref.watch(homeGreetingProvider);
     final summaryAsync = ref.watch(dashboardSummaryProvider);
-    final lessonsAsync = ref.watch(lessonsProvider);
+    final lessonsAsync = ref.watch(studentLessonsStreamProvider);
     final progressAsync = ref.watch(learnerProgressProvider);
+    final unreadNotifications = ref.watch(unreadNotificationCountProvider);
 
     return Scaffold(
       body: SafeArea(
@@ -30,7 +40,8 @@ class StudentDashboardScreen extends ConsumerWidget {
             ref
               ..invalidate(homeGreetingProvider)
               ..invalidate(dashboardSummaryProvider)
-              ..invalidate(lessonsProvider)
+              ..invalidate(studentLessonsProvider)
+              ..invalidate(studentLessonsStreamProvider)
               ..invalidate(learnerProgressProvider);
           },
           child: ListView(
@@ -39,7 +50,14 @@ class StudentDashboardScreen extends ConsumerWidget {
               Container(
                 padding: const EdgeInsets.fromLTRB(16, 14, 16, 18),
                 decoration: const BoxDecoration(
-                  gradient: AppColors.heroGradient,
+                  image: DecorationImage(
+                    image: AssetImage('assets/images/galaxy.jpg'),
+                    fit: BoxFit.cover,
+                    colorFilter: ColorFilter.mode(
+                      Color(0x9E0B3C8A),
+                      BlendMode.darken,
+                    ),
+                  ),
                   borderRadius: BorderRadius.only(
                     bottomLeft: Radius.circular(22),
                     bottomRight: Radius.circular(22),
@@ -48,6 +66,16 @@ class StudentDashboardScreen extends ConsumerWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    const Text(
+                      AppStrings.appName,
+                      style: TextStyle(
+                        color: Color(0xFFD6E7FF),
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.2,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
                     Row(
                       children: [
                         Expanded(
@@ -82,23 +110,45 @@ class StudentDashboardScreen extends ConsumerWidget {
                           ),
                         ),
                         IconButton(
-                          onPressed: () {},
-                          icon: const Icon(
-                            Icons.notifications_none_rounded,
-                            color: Colors.white,
+                          onPressed: () => context.push('/notifications'),
+                          icon: Stack(
+                            clipBehavior: Clip.none,
+                            children: [
+                              const Icon(
+                                Icons.notifications_none_rounded,
+                                color: Colors.white,
+                              ),
+                              if (unreadNotifications > 0)
+                                Positioned(
+                                  top: -2,
+                                  right: -1,
+                                  child: Container(
+                                    width: 8,
+                                    height: 8,
+                                    decoration: const BoxDecoration(
+                                      color: Color(0xFFEF4444),
+                                      shape: BoxShape.circle,
+                                    ),
+                                  ),
+                                ),
+                            ],
                           ),
                         ),
-                        Container(
-                          width: 40,
-                          height: 40,
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.16),
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                          child: const Icon(
-                            Icons.public_rounded,
-                            color: Colors.white,
-                          ),
+                        IconButton(
+                          onPressed: isSigningOut ? null : onLogout,
+                          icon: isSigningOut
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : const Icon(
+                                  Icons.logout_rounded,
+                                  color: Colors.white,
+                                ),
                         ),
                       ],
                     ),
@@ -145,9 +195,16 @@ class StudentDashboardScreen extends ConsumerWidget {
                   children: [
                     lessonsAsync.when(
                       data: (lessons) {
-                        final lesson = lessons.isNotEmpty
-                            ? lessons.first
-                            : null;
+                        final progress = progressAsync.value;
+                        final completed =
+                            progress?.completedLessons ?? const [];
+                        final lesson = lessons
+                            .where((item) => !completed.contains(item.lessonId))
+                            .firstOrNull;
+                        final allCompleted =
+                            lessons.isNotEmpty &&
+                            completed.length >= lessons.length;
+
                         return FadeSlideIn(
                           delayMs: 40,
                           child: Container(
@@ -168,7 +225,7 @@ class StudentDashboardScreen extends ConsumerWidget {
                                         CrossAxisAlignment.start,
                                     children: [
                                       const Text(
-                                        'Continue Learning',
+                                        'Learning Focus',
                                         style: TextStyle(
                                           color: Color(0xFF1F2A37),
                                           fontSize: 12,
@@ -177,7 +234,10 @@ class StudentDashboardScreen extends ConsumerWidget {
                                       ),
                                       const SizedBox(height: 4),
                                       Text(
-                                        lesson?.title ?? 'Earth Science',
+                                        lesson?.title ??
+                                            (allCompleted
+                                                ? 'All Lessons Completed'
+                                                : 'Earth Science'),
                                         style: const TextStyle(
                                           fontWeight: FontWeight.w700,
                                           fontSize: 17,
@@ -185,66 +245,80 @@ class StudentDashboardScreen extends ConsumerWidget {
                                       ),
                                       const SizedBox(height: 6),
                                       Text(
-                                        lesson?.topic ??
-                                            'Start your next visual learning module.',
+                                        allCompleted
+                                            ? 'Great job. You can review any previous lesson anytime.'
+                                            : (lesson?.topic ??
+                                                  'Start your next visual learning module.'),
                                         style: const TextStyle(
                                           color: AppColors.textSecondary,
                                           height: 1.35,
                                         ),
                                       ),
                                       const SizedBox(height: 10),
-                                      Row(
-                                        children: [
-                                          Expanded(
-                                            child: ClipRRect(
-                                              borderRadius:
-                                                  BorderRadius.circular(999),
-                                              child:
-                                                  const LinearProgressIndicator(
-                                                    minHeight: 7,
-                                                    value: 0.6,
-                                                    backgroundColor:
-                                                        Colors.white,
-                                                    valueColor:
-                                                        AlwaysStoppedAnimation(
-                                                          AppColors.secondary,
-                                                        ),
-                                                  ),
-                                            ),
-                                          ),
-                                          const SizedBox(width: 8),
-                                          const Text(
-                                            '60%',
-                                            style: TextStyle(
-                                              fontWeight: FontWeight.w700,
-                                              fontSize: 12,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                      const SizedBox(height: 10),
-                                      SizedBox(
-                                        height: 34,
-                                        child: ElevatedButton(
-                                          onPressed: lesson == null
-                                              ? onOpenLessons
-                                              : () => context.push(
-                                                  '/lesson/${lesson.lessonId}',
+                                      if (!allCompleted && lessons.isNotEmpty)
+                                        Row(
+                                          children: [
+                                            Expanded(
+                                              child: ClipRRect(
+                                                borderRadius:
+                                                    BorderRadius.circular(999),
+                                                child: LinearProgressIndicator(
+                                                  minHeight: 7,
+                                                  value:
+                                                      (completed.isEmpty
+                                                              ? 0.0
+                                                              : completed
+                                                                        .length /
+                                                                    lessons
+                                                                        .length)
+                                                          .clamp(0.0, 1.0),
+                                                  backgroundColor: Colors.white,
+                                                  valueColor:
+                                                      const AlwaysStoppedAnimation(
+                                                        AppColors.secondary,
+                                                      ),
                                                 ),
-                                          style: ElevatedButton.styleFrom(
-                                            backgroundColor:
-                                                AppColors.secondary,
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 18,
+                                              ),
                                             ),
-                                            minimumSize: const Size(0, 34),
-                                          ),
-                                          child: const Text(
-                                            'Resume',
-                                            style: TextStyle(fontSize: 12),
+                                            const SizedBox(width: 8),
+                                            Text(
+                                              '${(completed.isEmpty || lessons.isEmpty ? 0 : ((completed.length / lessons.length) * 100)).toInt()}%',
+                                              style: const TextStyle(
+                                                fontWeight: FontWeight.w700,
+                                                fontSize: 12,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      const SizedBox(height: 10),
+                                      if (!allCompleted)
+                                        SizedBox(
+                                          height: 34,
+                                          child: ElevatedButton(
+                                            onPressed: lesson == null
+                                                ? onOpenLessons
+                                                : () => context.push(
+                                                    '/lesson/${lesson.lessonId}',
+                                                  ),
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor:
+                                                  AppColors.secondary,
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 18,
+                                                  ),
+                                              minimumSize: const Size(0, 34),
+                                            ),
+                                            child: Text(
+                                              completed.isEmpty
+                                                  ? 'Start'
+                                                  : 'Next Lesson',
+                                              style: const TextStyle(
+                                                fontSize: 12,
+                                              ),
+                                            ),
                                           ),
                                         ),
-                                      ),
                                     ],
                                   ),
                                 ),
@@ -255,6 +329,7 @@ class StudentDashboardScreen extends ConsumerWidget {
                                   child: LessonTopicArtwork(
                                     lessonId:
                                         lesson?.lessonId ?? 'plate_tectonics',
+                                    imageUrl: lesson?.bannerUrl,
                                     borderRadius: 18,
                                   ),
                                 ),
@@ -294,7 +369,7 @@ class StudentDashboardScreen extends ConsumerWidget {
                             return GridView.builder(
                               shrinkWrap: true,
                               physics: const NeverScrollableScrollPhysics(),
-                              itemCount: lessons.length.clamp(0, 6),
+                              itemCount: lessons.length,
                               gridDelegate:
                                   SliverGridDelegateWithFixedCrossAxisCount(
                                     crossAxisCount: compact ? 2 : 3,
@@ -305,13 +380,16 @@ class StudentDashboardScreen extends ConsumerWidget {
                               itemBuilder: (context, index) {
                                 final lesson = lessons[index];
                                 final score =
-                                    progress?.quizScores[lesson.lessonId] ??
-                                    (0.8 - (index * 0.1)).clamp(0.2, 0.85);
+                                    ((progress?.quizScores[lesson.lessonId] ??
+                                                0.0)
+                                            .clamp(0.0, 1.0))
+                                        .toDouble();
                                 return FadeSlideIn(
                                   delayMs: 80 + (index * 35),
                                   child: _ModuleCard(
                                     title: lesson.title,
                                     lessonId: lesson.lessonId,
+                                    imageUrl: lesson.bannerUrl,
                                     progress: score,
                                     onTap: () => context.push(
                                       '/lesson/${lesson.lessonId}',
@@ -391,12 +469,14 @@ class _ModuleCard extends StatelessWidget {
   const _ModuleCard({
     required this.title,
     required this.lessonId,
+    required this.imageUrl,
     required this.progress,
     required this.onTap,
   });
 
   final String title;
   final String lessonId;
+  final String imageUrl;
   final double progress;
   final VoidCallback onTap;
 
@@ -424,6 +504,7 @@ class _ModuleCard extends StatelessWidget {
                 height: 68,
                 child: LessonTopicArtwork(
                   lessonId: lessonId,
+                  imageUrl: imageUrl,
                   borderRadius: 14,
                   showLabel: false,
                 ),
@@ -467,4 +548,8 @@ class _ModuleCard extends StatelessWidget {
       ),
     );
   }
+}
+
+extension _FirstOrNull<T> on Iterable<T> {
+  T? get firstOrNull => isEmpty ? null : first;
 }

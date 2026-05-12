@@ -74,24 +74,6 @@ class AuthController extends StateNotifier<AsyncValue<AppUser?>> {
     return user;
   }
 
-  Future<AppUser?> loginWithGoogle({
-    AppRole? preferredRole,
-    String? teacherAccessCode,
-  }) async {
-    state = const AsyncValue.loading();
-    state = await AsyncValue.guard(
-      () => _repository.signInWithGoogle(
-        preferredRole: preferredRole,
-        teacherAccessCode: teacherAccessCode,
-      ),
-    );
-    final user = state.valueOrNull;
-    if (user != null) {
-      _ref.invalidate(currentUserProvider);
-    }
-    return user;
-  }
-
   Future<void> resetPassword(String email) async {
     await _repository.sendPasswordReset(email);
   }
@@ -108,7 +90,27 @@ class AuthController extends StateNotifier<AsyncValue<AppUser?>> {
     return user;
   }
 
+  Future<AppUser> updateProfileEmail(String email) async {
+    final user = await _repository.updateCurrentUserEmail(email);
+    _ref.invalidate(currentUserProvider);
+    return user;
+  }
+
   Future<void> changePassword(String newPassword) {
     return _repository.updateCurrentUserPassword(newPassword);
+  }
+
+  Future<bool> verifyRegisteredEmail(String email) {
+    return _repository.verifyRegisteredEmail(email);
+  }
+
+  Future<void> resetPasswordWithoutEmailVerification({
+    required String email,
+    required String newPassword,
+  }) {
+    return _repository.resetPasswordWithoutEmailVerification(
+      email: email,
+      newPassword: newPassword,
+    );
   }
 }

@@ -20,7 +20,12 @@ class CustomButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return ElevatedButton(
       style: ElevatedButton.styleFrom(backgroundColor: backgroundColor),
-      onPressed: isLoading ? null : onPressed,
+      onPressed: isLoading
+          ? null
+          : () {
+              FocusManager.instance.primaryFocus?.unfocus();
+              onPressed?.call();
+            },
       child: isLoading
           ? const SizedBox(
               height: 20,

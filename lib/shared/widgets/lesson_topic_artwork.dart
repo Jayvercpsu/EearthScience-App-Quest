@@ -1,4 +1,15 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
+
+String normalizeLessonImagePath(String? value) {
+  final trimmed = (value ?? '').trim();
+  if (trimmed.startsWith('assets/image/')) {
+    return trimmed.replaceFirst('assets/image/', 'assets/images/');
+  }
+  return trimmed;
+}
 
 class LessonTopicArtwork extends StatelessWidget {
   const LessonTopicArtwork({
@@ -7,6 +18,7 @@ class LessonTopicArtwork extends StatelessWidget {
     this.width = double.infinity,
     this.borderRadius = 22,
     this.showLabel = true,
+    this.imageUrl,
     super.key,
   });
 
@@ -15,11 +27,14 @@ class LessonTopicArtwork extends StatelessWidget {
   final double width;
   final double borderRadius;
   final bool showLabel;
+  final String? imageUrl;
 
   @override
   Widget build(BuildContext context) {
     final theme = lessonTopicVisualFor(lessonId);
     final isCompact = height < 88;
+    final resolvedImageUrl = normalizeLessonImagePath(imageUrl);
+    final hasImage = resolvedImageUrl.isNotEmpty;
 
     return Container(
       width: width,
@@ -43,30 +58,49 @@ class LessonTopicArtwork extends StatelessWidget {
         borderRadius: BorderRadius.circular(borderRadius),
         child: Stack(
           children: [
-            Positioned(
-              top: -26,
-              right: -18,
-              child: Container(
-                width: height * 0.72,
-                height: height * 0.72,
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.1),
-                  shape: BoxShape.circle,
+            if (!hasImage) ...[
+              Positioned(
+                top: -26,
+                right: -18,
+                child: Container(
+                  width: height * 0.72,
+                  height: height * 0.72,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.1),
+                    shape: BoxShape.circle,
+                  ),
                 ),
               ),
-            ),
-            Positioned(
-              bottom: -34,
-              left: -10,
-              child: Container(
-                width: height * 0.86,
-                height: height * 0.86,
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.08),
-                  shape: BoxShape.circle,
+              Positioned(
+                bottom: -34,
+                left: -10,
+                child: Container(
+                  width: height * 0.86,
+                  height: height * 0.86,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.08),
+                    shape: BoxShape.circle,
+                  ),
                 ),
               ),
-            ),
+            ],
+            if (hasImage)
+              Positioned.fill(child: _ArtworkImage(imageUrl: resolvedImageUrl)),
+            if (hasImage)
+              Positioned.fill(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Colors.black.withValues(alpha: 0.18),
+                        Colors.black.withValues(alpha: 0.42),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
             Positioned(
               left: 14,
               top: 12,
@@ -77,10 +111,14 @@ class LessonTopicArtwork extends StatelessWidget {
                         vertical: 5,
                       ),
                       decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.16),
+                        color: Colors.white.withValues(
+                          alpha: hasImage ? 0.24 : 0.16,
+                        ),
                         borderRadius: BorderRadius.circular(999),
                         border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.18),
+                          color: Colors.white.withValues(
+                            alpha: hasImage ? 0.3 : 0.18,
+                          ),
                         ),
                       ),
                       child: Text(
@@ -95,21 +133,22 @@ class LessonTopicArtwork extends StatelessWidget {
                     )
                   : const SizedBox.shrink(),
             ),
-            Positioned.fill(
-              child: Padding(
-                padding: const EdgeInsets.all(14),
-                child: isCompact
-                    ? Align(
-                        alignment: Alignment.bottomRight,
-                        child: Icon(
-                          theme.primaryIcon,
-                          color: Colors.white,
-                          size: height * 0.36,
-                        ),
-                      )
-                    : _TopicArtworkBody(lessonId: lessonId),
+            if (!hasImage)
+              Positioned.fill(
+                child: Padding(
+                  padding: const EdgeInsets.all(14),
+                  child: isCompact
+                      ? Align(
+                          alignment: Alignment.bottomRight,
+                          child: Icon(
+                            theme.primaryIcon,
+                            color: Colors.white,
+                            size: height * 0.36,
+                          ),
+                        )
+                      : _TopicArtworkBody(lessonId: lessonId),
+                ),
               ),
-            ),
           ],
         ),
       ),
@@ -159,6 +198,46 @@ LessonTopicVisual lessonTopicVisualFor(String lessonId) {
         primaryIcon: Icons.cloud_queue_rounded,
         secondaryIcon: Icons.wb_sunny_rounded,
       );
+    case 'climate_change_basics':
+      return const LessonTopicVisual(
+        label: 'Climate',
+        gradient: [Color(0xFF0B7285), Color(0xFF38BDF8)],
+        accent: Color(0xFFFDE68A),
+        primaryIcon: Icons.thermostat_rounded,
+        secondaryIcon: Icons.eco_rounded,
+      );
+    case 'volcano_dynamics':
+      return const LessonTopicVisual(
+        label: 'Volcanoes',
+        gradient: [Color(0xFF7C2D12), Color(0xFFEA580C)],
+        accent: Color(0xFFFECACA),
+        primaryIcon: Icons.volcano_rounded,
+        secondaryIcon: Icons.local_fire_department_rounded,
+      );
+    case 'earthquake_basics':
+      return const LessonTopicVisual(
+        label: 'Earthquakes',
+        gradient: [Color(0xFF1E3A8A), Color(0xFF2563EB)],
+        accent: Color(0xFFBFDBFE),
+        primaryIcon: Icons.graphic_eq_rounded,
+        secondaryIcon: Icons.warning_amber_rounded,
+      );
+    case 'rocks_and_minerals':
+      return const LessonTopicVisual(
+        label: 'Rocks',
+        gradient: [Color(0xFF57534E), Color(0xFF78716C)],
+        accent: Color(0xFFD6D3D1),
+        primaryIcon: Icons.diamond_outlined,
+        secondaryIcon: Icons.category_outlined,
+      );
+    case 'earth_from_space':
+      return const LessonTopicVisual(
+        label: 'Earth View',
+        gradient: [Color(0xFF312E81), Color(0xFF6366F1)],
+        accent: Color(0xFFBFDBFE),
+        primaryIcon: Icons.satellite_alt_rounded,
+        secondaryIcon: Icons.public_rounded,
+      );
     default:
       return const LessonTopicVisual(
         label: 'Earth Science',
@@ -199,66 +278,171 @@ class _EarthLayersArtwork extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              _MiniSpecChip(icon: Icons.layers_clear_rounded, label: 'Crust'),
-              const SizedBox(height: 6),
-              _MiniSpecChip(icon: Icons.blur_circular_rounded, label: 'Mantle'),
-            ],
-          ),
-        ),
-        const SizedBox(width: 8),
-        Stack(
-          alignment: Alignment.center,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final veryTightWidth = constraints.maxWidth < 132;
+        final tightHeight = constraints.maxHeight < 92;
+        final hideChips = veryTightWidth || tightHeight;
+        final planetSize = tightHeight
+            ? constraints.maxHeight.clamp(44.0, 82.0)
+            : 86.0;
+
+        if (veryTightWidth) {
+          return Align(
+            alignment: Alignment.bottomRight,
+            child: SizedBox(
+              width: planetSize,
+              height: planetSize,
+              child: _EarthPlanet(size: planetSize),
+            ),
+          );
+        }
+
+        return Row(
           children: [
-            Container(
-              width: 86,
-              height: 86,
-              decoration: const BoxDecoration(
-                shape: BoxShape.circle,
-                color: Color(0xFFFFC04D),
-              ),
-            ),
-            Container(
-              width: 62,
-              height: 62,
-              decoration: const BoxDecoration(
-                shape: BoxShape.circle,
-                color: Color(0xFFE07A24),
-              ),
-            ),
-            Container(
-              width: 38,
-              height: 38,
-              decoration: const BoxDecoration(
-                shape: BoxShape.circle,
-                color: Color(0xFFB91C1C),
-              ),
-            ),
-            Positioned(
-              right: -2,
-              child: Container(
-                width: 42,
-                height: 88,
-                decoration: const BoxDecoration(
-                  color: Color(0xFF11397B),
-                  borderRadius: BorderRadius.horizontal(
-                    right: Radius.circular(44),
-                  ),
+            if (!hideChips)
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: const [
+                    _MiniSpecChip(
+                      icon: Icons.layers_clear_rounded,
+                      label: 'Crust',
+                    ),
+                    SizedBox(height: 6),
+                    _MiniSpecChip(
+                      icon: Icons.blur_circular_rounded,
+                      label: 'Mantle',
+                    ),
+                  ],
                 ),
               ),
-            ),
-            const Positioned(
-              bottom: 14,
-              right: 3,
-              child: Icon(Icons.public_rounded, color: Colors.white, size: 18),
+            if (!hideChips) const SizedBox(width: 8),
+            Align(
+              alignment: Alignment.bottomRight,
+              child: SizedBox(
+                width: planetSize,
+                height: planetSize,
+                child: _EarthPlanet(size: planetSize),
+              ),
             ),
           ],
+        );
+      },
+    );
+  }
+}
+
+class _ArtworkImage extends StatelessWidget {
+  const _ArtworkImage({required this.imageUrl});
+
+  final String imageUrl;
+
+  Uint8List? _decodeDataImageUri(String value) {
+    if (!value.startsWith('data:image/')) {
+      return null;
+    }
+    final commaIndex = value.indexOf(',');
+    if (commaIndex <= 0 || commaIndex >= value.length - 1) {
+      return null;
+    }
+    final encoded = value.substring(commaIndex + 1);
+    try {
+      return base64Decode(encoded);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (imageUrl.startsWith('http://') || imageUrl.startsWith('https://')) {
+      return Image.network(
+        imageUrl,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+      );
+    }
+
+    final dataBytes = _decodeDataImageUri(imageUrl);
+    if (dataBytes != null) {
+      return Image.memory(
+        dataBytes,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+      );
+    }
+
+    return Image.asset(
+      imageUrl,
+      fit: BoxFit.cover,
+      errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+    );
+  }
+}
+
+class _EarthPlanet extends StatelessWidget {
+  const _EarthPlanet({required this.size});
+
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final outer = size;
+    final middle = size * 0.72;
+    final inner = size * 0.44;
+    final cutWidth = size * 0.49;
+    final iconSize = size * 0.21;
+
+    return Stack(
+      alignment: Alignment.center,
+      children: [
+        Container(
+          width: outer,
+          height: outer,
+          decoration: const BoxDecoration(
+            shape: BoxShape.circle,
+            color: Color(0xFFFFC04D),
+          ),
+        ),
+        Container(
+          width: middle,
+          height: middle,
+          decoration: const BoxDecoration(
+            shape: BoxShape.circle,
+            color: Color(0xFFE07A24),
+          ),
+        ),
+        Container(
+          width: inner,
+          height: inner,
+          decoration: const BoxDecoration(
+            shape: BoxShape.circle,
+            color: Color(0xFFB91C1C),
+          ),
+        ),
+        Positioned(
+          right: -2,
+          child: Container(
+            width: cutWidth,
+            height: outer + 2,
+            decoration: BoxDecoration(
+              color: const Color(0xFF11397B),
+              borderRadius: BorderRadius.horizontal(
+                right: Radius.circular(outer / 2),
+              ),
+            ),
+          ),
+        ),
+        Positioned(
+          bottom: outer * 0.16,
+          right: outer * 0.03,
+          child: Icon(
+            Icons.public_rounded,
+            color: Colors.white,
+            size: iconSize,
+          ),
         ),
       ],
     );
@@ -461,6 +645,7 @@ class _MiniSpecChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
+      constraints: const BoxConstraints(minWidth: 0),
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.14),
@@ -471,12 +656,16 @@ class _MiniSpecChip extends StatelessWidget {
         children: [
           Icon(icon, color: Colors.white, size: 12),
           const SizedBox(width: 5),
-          Text(
-            label,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
+          Flexible(
+            child: Text(
+              label,
+              overflow: TextOverflow.ellipsis,
+              maxLines: 1,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
         ],

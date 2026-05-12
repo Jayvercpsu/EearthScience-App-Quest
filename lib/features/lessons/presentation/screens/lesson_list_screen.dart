@@ -6,6 +6,8 @@ import '../../../../core/constants/app_colors.dart';
 import '../../../../shared/animations/fade_slide_in.dart';
 import '../../../../shared/widgets/lesson_topic_artwork.dart';
 import '../../../../shared/widgets/loading_widget.dart';
+import '../../../auth/providers/auth_providers.dart';
+import '../../../notifications/providers/notification_providers.dart';
 import '../../../progress/providers/progress_providers.dart';
 import '../../providers/lesson_providers.dart';
 
@@ -25,12 +27,52 @@ class _LessonListScreenState extends ConsumerState<LessonListScreen> {
     super.dispose();
   }
 
+  Future<void> _logout() async {
+    FocusManager.instance.primaryFocus?.unfocus();
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Logout Account'),
+          content: const Text(
+            'Are you sure you want to logout from your student account?',
+          ),
+          actionsAlignment: MainAxisAlignment.end,
+          actionsOverflowAlignment: OverflowBarAlignment.end,
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFFDC2626),
+              ),
+              child: const Text('Logout'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirm != true || !mounted) {
+      return;
+    }
+    await ref.read(authControllerProvider.notifier).signOut();
+    if (!mounted) {
+      return;
+    }
+    context.go('/login');
+  }
+
   @override
   Widget build(BuildContext context) {
-    final lessonsAsync = ref.watch(lessonsProvider);
+    final lessonsAsync = ref.watch(studentLessonsStreamProvider);
     final progressAsync = ref.watch(learnerProgressProvider);
     final searchText = ref.watch(lessonSearchProvider);
     final filter = ref.watch(lessonFilterProvider);
+    final unread = ref.watch(unreadNotificationCountProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -38,10 +80,32 @@ class _LessonListScreenState extends ConsumerState<LessonListScreen> {
           'Lessons',
           style: TextStyle(fontWeight: FontWeight.w700),
         ),
-        actions: const [
-          Padding(
-            padding: EdgeInsets.only(right: 12),
-            child: Icon(Icons.menu_rounded),
+        actions: [
+          IconButton(
+            onPressed: () => context.push('/notifications'),
+            icon: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                const Icon(Icons.notifications_none_rounded),
+                if (unread > 0)
+                  Positioned(
+                    right: -2,
+                    top: -2,
+                    child: Container(
+                      width: 8,
+                      height: 8,
+                      decoration: const BoxDecoration(
+                        color: Color(0xFFEF4444),
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          IconButton(
+            onPressed: _logout,
+            icon: const Icon(Icons.logout_rounded),
           ),
         ],
       ),
@@ -101,19 +165,16 @@ class _LessonListScreenState extends ConsumerState<LessonListScreen> {
                       itemBuilder: (context, index) {
                         final lesson = filtered[index];
                         final lessonProgress =
-                            progress?.quizScores[lesson.lessonId] ??
-                            (0.8 - (index * 0.15)).clamp(0.2, 0.9);
-                        final locked = index > 1;
+                            ((progress?.quizScores[lesson.lessonId] ?? 0.0)
+                                    .clamp(0.0, 1.0))
+                                .toDouble();
 
                         return FadeSlideIn(
                           delayMs: 40 + (index * 30),
                           child: InkWell(
                             borderRadius: BorderRadius.circular(12),
-                            onTap: locked
-                                ? null
-                                : () => context.push(
-                                    '/lesson/${lesson.lessonId}',
-                                  ),
+                            onTap: () =>
+                                context.push('/lesson/${lesson.lessonId}'),
                             child: Container(
                               padding: const EdgeInsets.all(10),
                               decoration: BoxDecoration(
@@ -130,6 +191,7 @@ class _LessonListScreenState extends ConsumerState<LessonListScreen> {
                                     height: 58,
                                     child: LessonTopicArtwork(
                                       lessonId: lesson.lessonId,
+                                      imageUrl: lesson.bannerUrl,
                                       borderRadius: 14,
                                       showLabel: false,
                                     ),
@@ -186,11 +248,9 @@ class _LessonListScreenState extends ConsumerState<LessonListScreen> {
                                       ],
                                     ),
                                   ),
-                                  Icon(
-                                    locked
-                                        ? Icons.lock_outline_rounded
-                                        : Icons.chevron_right_rounded,
-                                    color: const Color(0xFF94A3B8),
+                                  const Icon(
+                                    Icons.chevron_right_rounded,
+                                    color: Color(0xFF94A3B8),
                                   ),
                                 ],
                               ),

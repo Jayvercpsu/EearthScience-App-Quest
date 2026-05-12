@@ -39,13 +39,18 @@ class ConfirmationDialog extends StatelessWidget {
     return AlertDialog(
       title: Text(title),
       content: Text(message),
+      actionsAlignment: MainAxisAlignment.end,
+      actionsOverflowAlignment: OverflowBarAlignment.end,
+      actionsOverflowDirection: VerticalDirection.down,
+      actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
           child: Text(cancelLabel),
         ),
-        ElevatedButton(
+        FilledButton(
           onPressed: () {
+            FocusManager.instance.primaryFocus?.unfocus();
             Navigator.of(context).pop();
             onConfirm();
           },

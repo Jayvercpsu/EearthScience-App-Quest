@@ -6,6 +6,7 @@ import '../../../../core/constants/app_colors.dart';
 import '../../../../shared/animations/fade_slide_in.dart';
 import '../../../../shared/widgets/lesson_topic_artwork.dart';
 import '../../../../shared/widgets/loading_widget.dart';
+import '../../../progress/providers/progress_providers.dart';
 import '../../providers/lesson_providers.dart';
 
 class LessonDetailScreen extends ConsumerWidget {
@@ -16,6 +17,7 @@ class LessonDetailScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final lessonAsync = ref.watch(lessonByIdProvider(lessonId));
+    final progressAsync = ref.watch(learnerProgressProvider);
 
     return Scaffold(
       body: lessonAsync.when(
@@ -23,6 +25,10 @@ class LessonDetailScreen extends ConsumerWidget {
           if (lesson == null) {
             return const Center(child: Text('Lesson not found'));
           }
+          final lessonProgress =
+              ((progressAsync.valueOrNull?.quizScores[lesson.lessonId] ?? 0.0)
+                      .clamp(0.0, 1.0))
+                  .toDouble();
 
           return Column(
             children: [
@@ -42,6 +48,7 @@ class LessonDetailScreen extends ConsumerWidget {
                       padding: const EdgeInsets.fromLTRB(18, 80, 18, 18),
                       child: LessonTopicArtwork(
                         lessonId: lesson.lessonId,
+                        imageUrl: lesson.bannerUrl,
                         borderRadius: 28,
                       ),
                     ),
@@ -92,9 +99,9 @@ class LessonDetailScreen extends ConsumerWidget {
                             color: AppColors.secondary,
                             background: const Color(0xFFE9F8EF),
                           ),
-                          const _InfoPill(
+                          _InfoPill(
                             icon: Icons.schedule_rounded,
-                            label: '40 min',
+                            label: '${lesson.estimatedMinutes} min',
                             color: AppColors.textSecondary,
                             background: Color(0xFFF1F5F9),
                           ),
@@ -153,8 +160,78 @@ class LessonDetailScreen extends ConsumerWidget {
                             ),
                           ),
                       const SizedBox(height: 8),
-                      const Text(
-                        '20% Progress',
+                      if (lesson.resourceLinks.isNotEmpty) ...[
+                        const Text(
+                          'References',
+                          style: TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                        const SizedBox(height: 8),
+                        ...lesson.resourceLinks.map(
+                          (link) => Padding(
+                            padding: const EdgeInsets.only(bottom: 6),
+                            child: Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF8FAFD),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(
+                                  color: const Color(0xFFE3E8F0),
+                                ),
+                              ),
+                              child: Text(
+                                link,
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: AppColors.textSecondary,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                      ],
+                      if (lesson.supplementFileUrl.trim().isNotEmpty) ...[
+                        const Text(
+                          'Supplement File',
+                          style: TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                        const SizedBox(height: 8),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF8FAFD),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: const Color(0xFFE3E8F0)),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                lesson.supplementFileName.isEmpty
+                                    ? 'Attached Lesson File'
+                                    : lesson.supplementFileName,
+                                style: const TextStyle(
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'Type: ${lesson.supplementFileType.toUpperCase()}',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: AppColors.textSecondary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                      ],
+                      Text(
+                        '${(lessonProgress * 100).toInt()}% Progress',
                         style: TextStyle(
                           fontSize: 12,
                           color: AppColors.textSecondary,
@@ -163,11 +240,13 @@ class LessonDetailScreen extends ConsumerWidget {
                       const SizedBox(height: 6),
                       ClipRRect(
                         borderRadius: BorderRadius.circular(999),
-                        child: const LinearProgressIndicator(
-                          value: 0.2,
+                        child: LinearProgressIndicator(
+                          value: lessonProgress,
                           minHeight: 5,
-                          backgroundColor: Color(0xFFE7ECF3),
-                          valueColor: AlwaysStoppedAnimation(AppColors.primary),
+                          backgroundColor: const Color(0xFFE7ECF3),
+                          valueColor: const AlwaysStoppedAnimation(
+                            AppColors.primary,
+                          ),
                         ),
                       ),
                       const SizedBox(height: 14),
@@ -179,7 +258,7 @@ class LessonDetailScreen extends ConsumerWidget {
                             borderRadius: BorderRadius.circular(12),
                           ),
                         ),
-                        child: const Text('Start Quiz Challenge'),
+                        child: const Text('Play Quiz Game'),
                       ),
                     ],
                   ),

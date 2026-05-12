@@ -127,6 +127,13 @@ service cloud.firestore {
       allow create, update, delete: if isTeacherOrAdmin();
     }
 
+    match /notifications/{notificationId} {
+      allow read: if signedIn();
+      allow create: if isTeacherOrAdmin();
+      allow update: if signedIn();
+      allow delete: if isTeacherOrAdmin();
+    }
+
     match /feedback_or_evaluation/{feedbackId} {
       allow create: if signedIn();
       allow read: if isTeacherOrAdmin();

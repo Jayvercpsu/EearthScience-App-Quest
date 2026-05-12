@@ -11,8 +11,16 @@ final lessonsProvider = FutureProvider<List<Lesson>>((ref) {
   return ref.read(lessonRepositoryProvider).fetchLessons();
 });
 
+final studentLessonsProvider = FutureProvider<List<Lesson>>((ref) {
+  return ref.read(lessonRepositoryProvider).fetchPublishedLessons();
+});
+
 final lessonsStreamProvider = StreamProvider<List<Lesson>>((ref) {
   return ref.read(lessonRepositoryProvider).streamLessons();
+});
+
+final studentLessonsStreamProvider = StreamProvider<List<Lesson>>((ref) {
+  return ref.read(lessonRepositoryProvider).streamPublishedLessons();
 });
 
 final lessonByIdProvider = FutureProvider.family<Lesson?, String>((

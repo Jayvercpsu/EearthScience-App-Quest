@@ -8,7 +8,6 @@ import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/illustration_assets.dart';
 import '../../../auth/data/models/app_user.dart';
 import '../../../auth/providers/auth_providers.dart';
-import '../../../onboarding/providers/onboarding_provider.dart';
 
 class SplashScreen extends ConsumerStatefulWidget {
   const SplashScreen({super.key});
@@ -34,17 +33,6 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
 
   Future<void> _bootstrap() async {
     await Future<void>.delayed(const Duration(milliseconds: 2000));
-
-    final onboardingDone = await ref
-        .read(onboardingServiceProvider)
-        .isOnboardingDone();
-
-    if (!mounted) return;
-
-    if (!onboardingDone) {
-      context.go('/onboarding');
-      return;
-    }
 
     final user = await ref.read(authRepositoryProvider).currentAppUser();
 
@@ -127,7 +115,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                       ),
                       SizedBox(height: 12),
                       Text(
-                        'EARTH SCIENCE\nGAMIFIED\nMOBILE APP',
+                        'EARTH SCIENCE APP',
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           color: Colors.white,
@@ -151,7 +139,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                   height: 26,
                   child: Center(
                     child: Text(
-                      'Loading...',
+                      'Loading app shell...',
                       style: TextStyle(color: Colors.white70),
                     ),
                   ),
@@ -159,7 +147,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                 ClipRRect(
                   borderRadius: BorderRadius.circular(999),
                   child: LinearProgressIndicator(
-                    value: 0.65,
+                    value: null,
                     minHeight: 5,
                     backgroundColor: Colors.white.withValues(alpha: 0.2),
                     valueColor: const AlwaysStoppedAnimation(Color(0xFF3FA8FF)),

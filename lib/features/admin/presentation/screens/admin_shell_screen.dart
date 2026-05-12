@@ -754,10 +754,10 @@ class _AdminHeader extends StatelessWidget {
       margin: const EdgeInsets.fromLTRB(12, 8, 12, 0),
       padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF032864), Color(0xFF0A4BC2)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
+        image: const DecorationImage(
+          image: AssetImage('assets/images/galaxy.jpg'),
+          fit: BoxFit.cover,
+          colorFilter: ColorFilter.mode(Color(0x9E0B3C8A), BlendMode.darken),
         ),
         borderRadius: BorderRadius.circular(16),
       ),

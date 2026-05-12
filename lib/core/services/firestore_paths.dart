@@ -7,5 +7,6 @@ class FirestorePaths {
   static const challenges = 'challenges';
   static const achievements = 'achievements';
   static const lessonExemplars = 'lesson_exemplars';
+  static const notifications = 'notifications';
   static const feedbackOrEvaluation = 'feedback_or_evaluation';
 }

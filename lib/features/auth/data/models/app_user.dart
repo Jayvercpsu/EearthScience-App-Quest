@@ -1,3 +1,5 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 enum AppRole { student, teacher, admin }
 
 extension AppRoleX on AppRole {
@@ -101,10 +103,20 @@ class AppUser {
       xp: (map['xp'] as num?)?.toInt() ?? 0,
       level: (map['level'] as num?)?.toInt() ?? 1,
       streak: (map['streak'] as num?)?.toInt() ?? 0,
-      createdAt: DateTime.fromMillisecondsSinceEpoch(
-        (map['createdAt'] as num?)?.toInt() ??
-            DateTime.now().millisecondsSinceEpoch,
-      ),
+      createdAt: _parseDateTime(map['createdAt']),
     );
   }
+}
+
+DateTime _parseDateTime(dynamic value) {
+  if (value is Timestamp) {
+    return value.toDate();
+  }
+  if (value is num) {
+    return DateTime.fromMillisecondsSinceEpoch(value.toInt());
+  }
+  if (value is String) {
+    return DateTime.tryParse(value) ?? DateTime.now();
+  }
+  return DateTime.now();
 }

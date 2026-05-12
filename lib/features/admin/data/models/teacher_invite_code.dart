@@ -29,15 +29,30 @@ class TeacherInviteCode {
       id: doc.id,
       code: (map['code'] as String? ?? '').trim(),
       isActive: map['isActive'] as bool? ?? true,
-      createdAt: DateTime.fromMillisecondsSinceEpoch(
-        (map['createdAt'] as num?)?.toInt() ??
-            DateTime.now().millisecondsSinceEpoch,
-      ),
+      createdAt: _parseDateTime(map['createdAt']),
       createdBy: map['createdBy'] as String? ?? '',
       usedByUserId: map['usedByUserId'] as String?,
-      usedAt: map['usedAt'] == null
-          ? null
-          : DateTime.fromMillisecondsSinceEpoch((map['usedAt'] as num).toInt()),
+      usedAt: _parseDateTimeOrNull(map['usedAt']),
     );
   }
+}
+
+DateTime _parseDateTime(dynamic value) {
+  if (value is Timestamp) {
+    return value.toDate();
+  }
+  if (value is num) {
+    return DateTime.fromMillisecondsSinceEpoch(value.toInt());
+  }
+  if (value is String) {
+    return DateTime.tryParse(value) ?? DateTime.now();
+  }
+  return DateTime.now();
+}
+
+DateTime? _parseDateTimeOrNull(dynamic value) {
+  if (value == null) {
+    return null;
+  }
+  return _parseDateTime(value);
 }

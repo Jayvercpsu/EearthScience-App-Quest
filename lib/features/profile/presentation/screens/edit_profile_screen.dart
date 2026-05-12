@@ -16,6 +16,10 @@ class EditProfileScreen extends ConsumerStatefulWidget {
 
 class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
   late final TextEditingController _nameController;
+  late final TextEditingController _emailController;
+  final TextEditingController _passwordController = TextEditingController();
+  final TextEditingController _confirmPasswordController =
+      TextEditingController();
   final _formKey = GlobalKey<FormState>();
   bool _isSaving = false;
 
@@ -23,24 +27,41 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
   void initState() {
     super.initState();
     _nameController = TextEditingController(text: widget.user.name);
+    _emailController = TextEditingController(text: widget.user.email);
   }
 
   @override
   void dispose() {
     _nameController.dispose();
+    _emailController.dispose();
+    _passwordController.dispose();
+    _confirmPasswordController.dispose();
     super.dispose();
   }
 
   Future<void> _save() async {
+    FocusManager.instance.primaryFocus?.unfocus();
     if (!_formKey.currentState!.validate() || _isSaving) {
       return;
     }
 
     setState(() => _isSaving = true);
     try {
-      await ref
-          .read(authControllerProvider.notifier)
-          .updateProfileName(_nameController.text.trim());
+      final auth = ref.read(authControllerProvider.notifier);
+      final nextName = _nameController.text.trim();
+      final nextEmail = _emailController.text.trim().toLowerCase();
+      final nextPassword = _passwordController.text.trim();
+
+      if (nextName != widget.user.name) {
+        await auth.updateProfileName(nextName);
+      }
+      if (nextEmail != widget.user.email.toLowerCase()) {
+        await auth.updateProfileEmail(nextEmail);
+      }
+      if (nextPassword.isNotEmpty) {
+        await auth.changePassword(nextPassword);
+      }
+
       if (!mounted) {
         return;
       }
@@ -136,7 +157,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text(
-                      'Personal Details',
+                      'Profile Details',
                       style: TextStyle(
                         fontWeight: FontWeight.w700,
                         fontSize: 15,
@@ -162,12 +183,18 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                     ),
                     const SizedBox(height: 12),
                     TextFormField(
-                      initialValue: widget.user.email,
-                      enabled: false,
+                      controller: _emailController,
                       decoration: const InputDecoration(
                         labelText: 'Email Address',
                         prefixIcon: Icon(Icons.mail_outline_rounded),
                       ),
+                      validator: (value) {
+                        final text = value?.trim() ?? '';
+                        if (text.isEmpty || !text.contains('@')) {
+                          return 'Enter a valid email';
+                        }
+                        return null;
+                      },
                     ),
                     const SizedBox(height: 12),
                     TextFormField(
@@ -177,6 +204,40 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                         labelText: 'Account Type',
                         prefixIcon: Icon(Icons.verified_user_outlined),
                       ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: _passwordController,
+                      obscureText: true,
+                      decoration: const InputDecoration(
+                        labelText: 'New Password (optional)',
+                        prefixIcon: Icon(Icons.lock_outline_rounded),
+                      ),
+                      validator: (value) {
+                        final text = value?.trim() ?? '';
+                        if (text.isNotEmpty && text.length < 6) {
+                          return 'Password must be at least 6 characters';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: _confirmPasswordController,
+                      obscureText: true,
+                      decoration: const InputDecoration(
+                        labelText: 'Confirm New Password',
+                        prefixIcon: Icon(Icons.lock_reset_outlined),
+                      ),
+                      validator: (value) {
+                        if (_passwordController.text.trim().isEmpty) {
+                          return null;
+                        }
+                        if (value?.trim() != _passwordController.text.trim()) {
+                          return 'Passwords do not match';
+                        }
+                        return null;
+                      },
                     ),
                     const SizedBox(height: 16),
                     Container(
@@ -195,7 +256,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                           SizedBox(width: 10),
                           Expanded(
                             child: Text(
-                              'Your email stays the same. Only your visible profile name will be updated in Firebase.',
+                              'Name, email, and password can be updated here.',
                               style: TextStyle(
                                 color: AppColors.textSecondary,
                                 height: 1.4,

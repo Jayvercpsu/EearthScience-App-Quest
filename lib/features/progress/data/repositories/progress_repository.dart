@@ -11,12 +11,12 @@ class ProgressRepository {
 
   LearnerProgress _fallbackProgress = const LearnerProgress(
     userId: 'local_student',
-    completedLessons: ['earth_structure'],
-    quizScores: {'earth_structure': 0.67, 'plate_tectonics': 0.33},
-    masteryPercentage: 0.56,
-    vocabularyProgress: 0.62,
-    conceptualProgress: 0.51,
-    engagementStats: {'dailyStreak': 3, 'activeDays': 10, 'weeklySessions': 5},
+    completedLessons: [],
+    quizScores: {},
+    masteryPercentage: 0.0,
+    vocabularyProgress: 0.0,
+    conceptualProgress: 0.0,
+    engagementStats: {'dailyStreak': 0, 'activeDays': 0, 'weeklySessions': 0},
   );
 
   Future<LearnerProgress> getProgress(String userId) async {

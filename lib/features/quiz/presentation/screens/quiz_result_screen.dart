@@ -11,12 +11,32 @@ class QuizResultArgs {
     required this.score,
     required this.total,
     required this.xpGained,
+    this.reviewItems = const [],
+    this.continueRoute = '/student',
   });
 
   final String lessonId;
   final int score;
   final int total;
   final int xpGained;
+  final List<ReviewAnswerItem> reviewItems;
+  final String continueRoute;
+}
+
+class ReviewAnswerItem {
+  const ReviewAnswerItem({
+    required this.question,
+    required this.selectedAnswer,
+    required this.correctAnswer,
+    required this.explanation,
+    required this.isCorrect,
+  });
+
+  final String question;
+  final String selectedAnswer;
+  final String correctAnswer;
+  final String explanation;
+  final bool isCorrect;
 }
 
 class QuizResultScreen extends StatefulWidget {
@@ -167,7 +187,9 @@ class _QuizResultScreenState extends State<QuizResultScreen> {
                 ),
                 const SizedBox(height: 14),
                 OutlinedButton(
-                  onPressed: () {},
+                  onPressed: widget.args.reviewItems.isEmpty
+                      ? null
+                      : () => _openReviewAnswers(context),
                   style: OutlinedButton.styleFrom(
                     minimumSize: const Size.fromHeight(48),
                     shape: RoundedRectangleBorder(
@@ -178,7 +200,7 @@ class _QuizResultScreenState extends State<QuizResultScreen> {
                 ),
                 const SizedBox(height: 10),
                 ElevatedButton(
-                  onPressed: () => context.go('/student'),
+                  onPressed: () => context.go(widget.args.continueRoute),
                   style: ElevatedButton.styleFrom(
                     minimumSize: const Size.fromHeight(48),
                     shape: RoundedRectangleBorder(
@@ -204,6 +226,86 @@ class _QuizResultScreenState extends State<QuizResultScreen> {
           ],
         ),
       ),
+    );
+  }
+
+  Future<void> _openReviewAnswers(BuildContext context) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (_) {
+        final items = widget.args.reviewItems;
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(14, 8, 14, 14),
+            child: Column(
+              children: [
+                Text(
+                  'Review Answers',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const SizedBox(height: 10),
+                Expanded(
+                  child: ListView.separated(
+                    itemCount: items.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 8),
+                    itemBuilder: (context, index) {
+                      final item = items[index];
+                      return Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: item.isCorrect
+                                ? const Color(0xFF86EFAC)
+                                : const Color(0xFFFCA5A5),
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Q${index + 1}: ${item.question}',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              'Your answer: ${item.selectedAnswer}',
+                              style: TextStyle(
+                                color: item.isCorrect
+                                    ? const Color(0xFF15803D)
+                                    : const Color(0xFFB91C1C),
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              'Correct answer: ${item.correctAnswer}',
+                              style: const TextStyle(color: Color(0xFF1D4ED8)),
+                            ),
+                            if (item.explanation.trim().isNotEmpty) ...[
+                              const SizedBox(height: 6),
+                              Text(
+                                item.explanation,
+                                style: const TextStyle(
+                                  color: AppColors.textSecondary,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }

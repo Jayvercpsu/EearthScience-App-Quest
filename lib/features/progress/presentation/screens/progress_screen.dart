@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../shared/widgets/loading_widget.dart';
+import '../../../auth/providers/auth_providers.dart';
+import '../../../notifications/providers/notification_providers.dart';
 import '../../providers/progress_providers.dart';
 
 class ProgressScreen extends ConsumerWidget {
@@ -12,6 +15,7 @@ class ProgressScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final progressAsync = ref.watch(learnerProgressProvider);
+    final unread = ref.watch(unreadNotificationCountProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -19,6 +23,71 @@ class ProgressScreen extends ConsumerWidget {
           'Progress',
           style: TextStyle(fontWeight: FontWeight.w700),
         ),
+        actions: [
+          IconButton(
+            onPressed: () => context.push('/notifications'),
+            icon: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                const Icon(Icons.notifications_none_rounded),
+                if (unread > 0)
+                  Positioned(
+                    right: -2,
+                    top: -2,
+                    child: Container(
+                      width: 8,
+                      height: 8,
+                      decoration: const BoxDecoration(
+                        color: Color(0xFFEF4444),
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          IconButton(
+            onPressed: () async {
+              FocusManager.instance.primaryFocus?.unfocus();
+              final confirm = await showDialog<bool>(
+                context: context,
+                builder: (dialogContext) {
+                  return AlertDialog(
+                    title: const Text('Logout Account'),
+                    content: const Text(
+                      'Are you sure you want to logout from your student account?',
+                    ),
+                    actionsAlignment: MainAxisAlignment.end,
+                    actionsOverflowAlignment: OverflowBarAlignment.end,
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.of(dialogContext).pop(false),
+                        child: const Text('Cancel'),
+                      ),
+                      FilledButton(
+                        onPressed: () => Navigator.of(dialogContext).pop(true),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: const Color(0xFFDC2626),
+                        ),
+                        child: const Text('Logout'),
+                      ),
+                    ],
+                  );
+                },
+              );
+
+              if (confirm != true || !context.mounted) {
+                return;
+              }
+              await ref.read(authControllerProvider.notifier).signOut();
+              if (!context.mounted) {
+                return;
+              }
+              context.go('/login');
+            },
+            icon: const Icon(Icons.logout_rounded),
+          ),
+        ],
       ),
       body: SafeArea(
         child: progressAsync.when(

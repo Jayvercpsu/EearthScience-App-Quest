@@ -17,7 +17,7 @@ class AboutAppScreen extends StatelessWidget {
             SizedBox(height: 16),
             _InfoCard(
               icon: Icons.public_rounded,
-              title: 'Earth Science Gamified Mobile App',
+              title: 'Earth Science App',
               description:
                   'A mobile learning experience focused on Earth structure, plate tectonics, weather systems, progress tracking, and quiz-based mastery.',
             ),

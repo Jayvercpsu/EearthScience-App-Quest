@@ -1,3 +1,5 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 class QuizQuestion {
   const QuizQuestion({
     required this.questionId,
@@ -47,7 +49,9 @@ class Quiz {
     required this.title,
     required this.questions,
     required this.totalPoints,
+    required this.secondsPerQuestion,
     required this.createdBy,
+    required this.createdAt,
   });
 
   final String quizId;
@@ -55,7 +59,9 @@ class Quiz {
   final String title;
   final List<QuizQuestion> questions;
   final int totalPoints;
+  final int secondsPerQuestion;
   final String createdBy;
+  final DateTime createdAt;
 
   Map<String, dynamic> toMap() {
     return {
@@ -64,7 +70,9 @@ class Quiz {
       'title': title,
       'questions': questions.map((q) => q.toMap()).toList(),
       'totalPoints': totalPoints,
+      'secondsPerQuestion': secondsPerQuestion,
       'createdBy': createdBy,
+      'createdAt': createdAt.millisecondsSinceEpoch,
     };
   }
 
@@ -78,7 +86,22 @@ class Quiz {
           .map(QuizQuestion.fromMap)
           .toList(),
       totalPoints: (map['totalPoints'] as num?)?.toInt() ?? 0,
+      secondsPerQuestion: (map['secondsPerQuestion'] as num?)?.toInt() ?? 30,
       createdBy: map['createdBy'] as String? ?? '',
+      createdAt: _parseDateTime(map['createdAt']),
     );
   }
+}
+
+DateTime _parseDateTime(dynamic value) {
+  if (value is Timestamp) {
+    return value.toDate();
+  }
+  if (value is num) {
+    return DateTime.fromMillisecondsSinceEpoch(value.toInt());
+  }
+  if (value is String) {
+    return DateTime.tryParse(value) ?? DateTime.now();
+  }
+  return DateTime.now();
 }

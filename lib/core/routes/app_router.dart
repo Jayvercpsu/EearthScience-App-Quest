@@ -6,10 +6,15 @@ import '../../features/admin/presentation/screens/admin_shell_screen.dart';
 import '../../features/auth/presentation/screens/forgot_password_screen.dart';
 import '../../features/auth/presentation/screens/login_screen.dart';
 import '../../features/auth/presentation/screens/register_screen.dart';
-import '../../features/evaluation/presentation/screens/evaluation_form_screen.dart';
 import '../../features/home/presentation/screens/student_shell_screen.dart';
 import '../../features/lessons/presentation/screens/lesson_detail_screen.dart';
-import '../../features/onboarding/presentation/screens/onboarding_screen.dart';
+import '../../features/notifications/presentation/screens/notifications_screen.dart';
+import '../../features/offline/presentation/screens/offline_lesson_detail_screen.dart';
+import '../../features/offline/presentation/screens/offline_earth_layers_game_screen.dart';
+import '../../features/offline/presentation/screens/offline_mini_game_screen.dart';
+import '../../features/offline/presentation/screens/offline_plate_boundary_game_screen.dart';
+import '../../features/offline/presentation/screens/offline_shell_screen.dart';
+
 import '../../features/quiz/presentation/screens/quiz_result_screen.dart';
 import '../../features/quiz/presentation/screens/quiz_screen.dart';
 import '../../features/splash/presentation/screens/splash_screen.dart';
@@ -20,10 +25,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     initialLocation: '/',
     routes: [
       GoRoute(path: '/', builder: (context, state) => const SplashScreen()),
-      GoRoute(
-        path: '/onboarding',
-        builder: (context, state) => const OnboardingScreen(),
-      ),
       GoRoute(path: '/login', builder: (context, state) => const LoginScreen()),
       GoRoute(
         path: '/register',
@@ -36,6 +37,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/student',
         builder: (context, state) => const StudentShellScreen(),
+      ),
+      GoRoute(
+        path: '/offline',
+        builder: (context, state) => const OfflineShellScreen(),
       ),
       GoRoute(
         path: '/teacher',
@@ -57,13 +62,38 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             QuizScreen(lessonId: state.pathParameters['lessonId'] ?? ''),
       ),
       GoRoute(
+        path: '/offline-lesson/:lessonId',
+        builder: (context, state) => OfflineLessonDetailScreen(
+          lessonId: state.pathParameters['lessonId'] ?? '',
+        ),
+      ),
+      GoRoute(
+        path: '/offline-quiz/:lessonId',
+        builder: (context, state) => QuizScreen(
+          lessonId: state.pathParameters['lessonId'] ?? '',
+          offlineMode: true,
+        ),
+      ),
+      GoRoute(
+        path: '/offline-mini-game',
+        builder: (context, state) => const OfflineMiniGameScreen(),
+      ),
+      GoRoute(
+        path: '/offline-plate-boundary-game',
+        builder: (context, state) => const OfflinePlateBoundaryGameScreen(),
+      ),
+      GoRoute(
+        path: '/offline-earth-layers-game',
+        builder: (context, state) => const OfflineEarthLayersGameScreen(),
+      ),
+      GoRoute(
         path: '/quiz-result',
         builder: (context, state) {
           final args = state.extra;
           if (args is! QuizResultArgs) {
             return const QuizResultScreen(
               args: QuizResultArgs(
-                lessonId: 'earth_structure',
+                lessonId: 'earth_crust_layers',
                 score: 0,
                 total: 0,
                 xpGained: 0,
@@ -78,8 +108,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const AchievementScreen(),
       ),
       GoRoute(
-        path: '/evaluation',
-        builder: (context, state) => const EvaluationFormScreen(),
+        path: '/notifications',
+        builder: (context, state) => const NotificationsScreen(),
       ),
     ],
   );
