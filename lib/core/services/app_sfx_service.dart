@@ -1,4 +1,5 @@
 import 'package:audioplayers/audioplayers.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 class AppSfxService {
@@ -12,6 +13,12 @@ class AppSfxService {
   DateTime _lastTapPlayedAt = DateTime.fromMillisecondsSinceEpoch(0);
 
   Future<void> init() async {
+    // Temporary safeguard: audioplayers Windows backend can emit platform
+    // channel thread warnings on some Flutter versions.
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.windows) {
+      _enabled = false;
+      return;
+    }
     // Keep lazy to avoid MissingPluginException during hot restart.
   }
 

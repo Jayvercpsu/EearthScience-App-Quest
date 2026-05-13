@@ -234,6 +234,8 @@ class _AdminShellScreenState extends ConsumerState<AdminShellScreen> {
                       : _UsersView(
                           key: const ValueKey('users'),
                           state: usersState,
+                          isBusy: actionState.isLoading || _accountActionBusy,
+                          adminUserId: authUser.uid,
                           userFilter: _userFilter,
                           controller: _usersScrollController,
                           dateFormat: _dateFormat,
@@ -252,6 +254,10 @@ class _AdminShellScreenState extends ConsumerState<AdminShellScreen> {
                               ref.read(adminUsersProvider.notifier).refresh(),
                             );
                           },
+                          onDeleteUser: (user) => _deleteUser(
+                            user: user,
+                            adminUserId: authUser.uid,
+                          ),
                         ),
                 ),
               ),
@@ -438,6 +444,89 @@ class _AdminShellScreenState extends ConsumerState<AdminShellScreen> {
     await Clipboard.setData(ClipboardData(text: code));
     if (!mounted) return;
     _showSnackBar('Invite code copied.');
+  }
+
+  Future<void> _deleteUser({
+    required AppUser user,
+    required String adminUserId,
+  }) async {
+    if (_accountActionBusy) {
+      return;
+    }
+    if (user.uid == adminUserId) {
+      _showSnackBar('You cannot delete your own admin account.');
+      return;
+    }
+
+    FocusManager.instance.primaryFocus?.unfocus();
+    final confirmed = await _showDeleteUserConfirmation(user: user);
+    if (!confirmed) {
+      return;
+    }
+
+    setState(() => _accountActionBusy = true);
+    try {
+      await ref
+          .read(adminActionProvider.notifier)
+          .deleteUser(targetUserId: user.uid, adminUserId: adminUserId);
+      if (!mounted) return;
+
+      await ref.read(adminUsersProvider.notifier).refresh();
+      if (!mounted) return;
+      ref.invalidate(adminStatsProvider);
+      _showSnackBar('User account deleted.');
+    } catch (error) {
+      if (!mounted) return;
+      _showSnackBar(error.toString().replaceFirst('Exception: ', ''));
+    } finally {
+      if (mounted) {
+        setState(() => _accountActionBusy = false);
+      }
+    }
+  }
+
+  Future<bool> _showDeleteUserConfirmation({required AppUser user}) async {
+    if (!mounted) {
+      return false;
+    }
+
+    final textStyle = TextButton.styleFrom(
+      minimumSize: Size.zero,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+    );
+    final elevatedStyle = ElevatedButton.styleFrom(
+      minimumSize: Size.zero,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      backgroundColor: AppColors.error,
+      foregroundColor: Colors.white,
+    );
+
+    final result = await _showRootDialog<bool>(
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Delete User'),
+          content: Text(
+            'Delete ${user.name} (${user.email})? This will block future logins for this account.',
+          ),
+          actions: [
+            TextButton(
+              style: textStyle,
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              style: elevatedStyle,
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Delete'),
+            ),
+          ],
+        );
+      },
+    );
+
+    return result ?? false;
   }
 
   Future<void> _logoutAdmin() async {
@@ -1125,19 +1214,25 @@ class _UsersView extends StatelessWidget {
   const _UsersView({
     super.key,
     required this.state,
+    required this.isBusy,
+    required this.adminUserId,
     required this.userFilter,
     required this.controller,
     required this.dateFormat,
     required this.onFilterChanged,
     required this.onRetry,
+    required this.onDeleteUser,
   });
 
   final AdminUsersState state;
+  final bool isBusy;
+  final String adminUserId;
   final _UserFilter userFilter;
   final ScrollController controller;
   final DateFormat dateFormat;
   final ValueChanged<_UserFilter> onFilterChanged;
   final VoidCallback onRetry;
+  final ValueChanged<AppUser> onDeleteUser;
 
   @override
   Widget build(BuildContext context) {
@@ -1278,6 +1373,29 @@ class _UsersView extends StatelessWidget {
                                   color: AppColors.textSecondary,
                                   fontSize: 12,
                                   fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                            if (user.uid != adminUserId &&
+                                user.role != AppRole.admin) ...[
+                              const SizedBox(height: 10),
+                              Align(
+                                alignment: Alignment.centerRight,
+                                child: OutlinedButton.icon(
+                                  onPressed: isBusy
+                                      ? null
+                                      : () => onDeleteUser(user),
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: AppColors.error,
+                                    side: const BorderSide(
+                                      color: Color(0xFFFFC6C6),
+                                    ),
+                                  ),
+                                  icon: const Icon(
+                                    Icons.delete_outline_rounded,
+                                    size: 16,
+                                  ),
+                                  label: const Text('Delete User'),
                                 ),
                               ),
                             ],

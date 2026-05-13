@@ -2,6 +2,12 @@
 cmake_minimum_required(VERSION 3.14)
 project(earth_science_gamified_app LANGUAGES CXX)
 
+# CMake 4.x removes compatibility with policy versions older than 3.5.
+# Some third-party plugin dependencies (e.g., Firebase C++ SDK) still declare
+# older minimum policies in nested CMakeLists. Set a floor so they can
+# configure without patching generated build artifacts.
+set(CMAKE_POLICY_VERSION_MINIMUM 3.10)
+
 # The name of the executable created for the application. Change this to change
 # the on-disk name of your application.
 set(BINARY_NAME "earth_science_gamified_app")

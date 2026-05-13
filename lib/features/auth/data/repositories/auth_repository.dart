@@ -58,6 +58,10 @@ class AuthRepository {
           .get();
       if (snapshot.exists && snapshot.data() != null) {
         final map = snapshot.data()!;
+        if (_isDeletedProfile(map)) {
+          await signOut();
+          return null;
+        }
         final user = AppUser.fromMap(map);
         await _ensureAccountCanAccessApp(user: user, userMap: map);
         _localUser = user;
@@ -80,6 +84,7 @@ class AuthRepository {
   }) async {
     _ensureAdminAccountAccess(role: role, adminAccessCode: adminAccessCode);
     final normalizedEmail = email.trim().toLowerCase();
+    User? createdAuthUser;
 
     try {
       final credential = await _auth.createUserWithEmailAndPassword(
@@ -87,6 +92,7 @@ class AuthRepository {
         password: password,
       );
       final firebaseUser = credential.user!;
+      createdAuthUser = firebaseUser;
 
       _TeacherInviteAccess? teacherInvite;
       if (role == AppRole.teacher) {
@@ -126,6 +132,7 @@ class AuthRepository {
 
       final userMap = user.toMap();
       userMap['localPasswordHash'] = _hashPassword(password);
+      userMap['isDeleted'] = false;
       if (role == AppRole.teacher && teacherInvite != null) {
         userMap['teacherInviteCode'] = teacherInvite.code;
         userMap['invitedAt'] = DateTime.now().millisecondsSinceEpoch;
@@ -137,10 +144,7 @@ class AuthRepository {
         userMap['adminSetupApproved'] = true;
       }
 
-      await _firestore
-          .collection(FirestorePaths.users)
-          .doc(user.uid)
-          .set(userMap);
+      await _writeUserProfileWithRetry(userId: user.uid, userMap: userMap);
 
       _localUser = user;
       return user;
@@ -152,6 +156,11 @@ class AuthRepository {
       }
       if (role != AppRole.student) {
         throw Exception('Registration failed (${error.code}).');
+      }
+      if (createdAuthUser != null) {
+        throw Exception(
+          'Registration could not finish profile setup. Please try again.',
+        );
       }
       final local = AppUser(
         uid: 'local_${DateTime.now().millisecondsSinceEpoch}',
@@ -166,7 +175,17 @@ class AuthRepository {
       _localUser = local;
       return local;
     } catch (error) {
+      if (createdAuthUser != null) {
+        try {
+          await createdAuthUser.delete();
+        } catch (_) {
+          // Keep the explicit error below; user can retry registration.
+        }
+      }
       if (role != AppRole.student) {
+        throw Exception(error.toString().replaceFirst('Exception: ', ''));
+      }
+      if (createdAuthUser != null) {
         throw Exception(error.toString().replaceFirst('Exception: ', ''));
       }
 
@@ -227,12 +246,20 @@ class AuthRepository {
       if (_isSeedAdminCredential(email: normalizedEmail, password: password)) {
         return _upsertSeedAdminProfile(credential.user!);
       }
-      throw Exception(
-        'Account profile is missing. Please contact your administrator.',
+      return _recoverMissingAccountProfile(
+        firebaseUser: credential.user!,
+        fallbackEmail: normalizedEmail,
       );
     }
 
     final userMap = snapshot.data()!;
+    if (_isDeletedProfile(userMap)) {
+      await signOut();
+      throw Exception(
+        'This account has been removed by an administrator. Please contact support.',
+      );
+    }
+
     final user = AppUser.fromMap(userMap);
     await _ensureAccountCanAccessApp(user: user, userMap: userMap);
     _localUser = user;
@@ -646,6 +673,7 @@ class AuthRepository {
       'createdAt': DateTime.now().millisecondsSinceEpoch,
       'seedAdmin': true,
       'adminSetupApproved': true,
+      'isDeleted': false,
     };
 
     await _firestore
@@ -685,6 +713,9 @@ class AuthRepository {
       }
 
       final map = snapshot.docs.first.data();
+      if (_isDeletedProfile(map)) {
+        return null;
+      }
       final storedHash = (map['localPasswordHash'] as String? ?? '').trim();
       if (storedHash.isEmpty) {
         return null;
@@ -723,6 +754,66 @@ class AuthRepository {
       // local mode
     }
     _localUser = null;
+  }
+
+  bool _isDeletedProfile(Map<String, dynamic> map) {
+    return map['isDeleted'] == true;
+  }
+
+  Future<void> _writeUserProfileWithRetry({
+    required String userId,
+    required Map<String, dynamic> userMap,
+  }) async {
+    Object? lastError;
+
+    for (var attempt = 0; attempt < 2; attempt++) {
+      try {
+        await _firestore
+            .collection(FirestorePaths.users)
+            .doc(userId)
+            .set(userMap);
+        return;
+      } catch (error) {
+        lastError = error;
+        if (attempt == 0) {
+          await Future<void>.delayed(const Duration(milliseconds: 280));
+        }
+      }
+    }
+
+    throw Exception(
+      lastError?.toString().replaceFirst('Exception: ', '') ??
+          'Unable to save account profile.',
+    );
+  }
+
+  Future<AppUser> _recoverMissingAccountProfile({
+    required User firebaseUser,
+    required String fallbackEmail,
+  }) async {
+    final normalizedEmail = (firebaseUser.email ?? fallbackEmail)
+        .trim()
+        .toLowerCase();
+    final rawName = (firebaseUser.displayName ?? '').trim();
+    final userMap = <String, dynamic>{
+      'uid': firebaseUser.uid,
+      'name': rawName.isEmpty ? 'Learner' : rawName,
+      'email': normalizedEmail,
+      'role': AppRole.student.value,
+      'xp': 0,
+      'level': 1,
+      'streak': 0,
+      'createdAt': DateTime.now().millisecondsSinceEpoch,
+      'isDeleted': false,
+    };
+
+    await _writeUserProfileWithRetry(
+      userId: firebaseUser.uid,
+      userMap: userMap,
+    );
+    final recoveredUser = AppUser.fromMap(userMap);
+    _localUser = recoveredUser;
+    return recoveredUser;
   }
 }
 

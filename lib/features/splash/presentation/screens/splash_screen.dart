@@ -34,16 +34,21 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
   Future<void> _bootstrap() async {
     await Future<void>.delayed(const Duration(milliseconds: 2000));
 
-    final user = await ref.read(authRepositoryProvider).currentAppUser();
+    AppUser? user;
+    try {
+      user = await ref
+          .read(authRepositoryProvider)
+          .currentAppUser()
+          .timeout(const Duration(seconds: 12));
+    } catch (_) {
+      // Avoid getting stuck on splash in release builds when Firebase/Firestore
+      // is temporarily unreachable or initialization fails.
+      user = null;
+    }
 
     if (!mounted) return;
 
-    if (user == null) {
-      context.go('/login');
-      return;
-    }
-
-    context.go(user.role.homeRoute);
+    context.go(user?.role.homeRoute ?? '/login');
   }
 
   @override

@@ -192,6 +192,19 @@ class AdminActionController extends StateNotifier<AsyncValue<void>> {
       () => _repository.deactivateInviteCode(inviteDocId),
     );
   }
+
+  Future<void> deleteUser({
+    required String targetUserId,
+    required String adminUserId,
+  }) async {
+    state = const AsyncValue.loading();
+    state = await AsyncValue.guard(
+      () => _repository.softDeleteUser(
+        targetUserId: targetUserId,
+        adminUserId: adminUserId,
+      ),
+    );
+  }
 }
 
 class AdminUsersState {

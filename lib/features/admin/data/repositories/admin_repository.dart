@@ -42,7 +42,8 @@ class AdminRepository {
     try {
       final snapshot = await query.get();
       final users = snapshot.docs
-          .map((doc) => AppUser.fromMap(doc.data()))
+          .map(_mapActiveUserFromDoc)
+          .whereType<AppUser>()
           .toList();
       final hasMore = snapshot.docs.length == limit;
 
@@ -90,15 +91,23 @@ class AdminRepository {
 
   Future<AdminStatsSnapshot> fetchStats() async {
     try {
-      final totalUsers = await _firestore
+      final usersSnapshot = await _firestore
           .collection(FirestorePaths.users)
-          .count()
           .get();
-      final teacherUsers = await _firestore
-          .collection(FirestorePaths.users)
-          .where('role', isEqualTo: AppRole.teacher.value)
-          .count()
-          .get();
+      var totalUsers = 0;
+      var teacherUsers = 0;
+      for (final userDoc in usersSnapshot.docs) {
+        final data = userDoc.data();
+        if (data['isDeleted'] == true) {
+          continue;
+        }
+        totalUsers++;
+        final role = AppRoleX.fromValue(data['role'] as String? ?? 'student');
+        if (role == AppRole.teacher) {
+          teacherUsers++;
+        }
+      }
+
       final totalInvites = await _firestore
           .collection(FirestorePaths.teacherInviteCodes)
           .count()
@@ -110,8 +119,8 @@ class AdminRepository {
           .get();
 
       return AdminStatsSnapshot(
-        totalUsers: totalUsers.count ?? 0,
-        teacherUsers: teacherUsers.count ?? 0,
+        totalUsers: totalUsers,
+        teacherUsers: teacherUsers,
         totalInvites: totalInvites.count ?? 0,
         activeInvites: activeInvites.count ?? 0,
       );
@@ -165,6 +174,58 @@ class AdminRepository {
         }, SetOptions(merge: true));
   }
 
+  Future<void> softDeleteUser({
+    required String targetUserId,
+    required String adminUserId,
+  }) async {
+    final trimmedTarget = targetUserId.trim();
+    final trimmedAdmin = adminUserId.trim();
+    if (trimmedTarget.isEmpty) {
+      throw Exception('User id is required.');
+    }
+    if (trimmedTarget == trimmedAdmin) {
+      throw Exception('You cannot delete your own admin account.');
+    }
+
+    final userRef = _firestore
+        .collection(FirestorePaths.users)
+        .doc(trimmedTarget);
+    final progressRef = _firestore
+        .collection(FirestorePaths.progress)
+        .doc(trimmedTarget);
+
+    await _firestore.runTransaction((transaction) async {
+      final userSnapshot = await transaction.get(userRef);
+      if (!userSnapshot.exists || userSnapshot.data() == null) {
+        throw Exception('User profile not found.');
+      }
+
+      final currentMap = userSnapshot.data()!;
+      if (currentMap['isDeleted'] == true) {
+        return;
+      }
+
+      final role = AppRoleX.fromValue(
+        currentMap['role'] as String? ?? 'student',
+      );
+      if (role == AppRole.admin) {
+        throw Exception('Deleting admin accounts is disabled.');
+      }
+
+      final now = DateTime.now().millisecondsSinceEpoch;
+      transaction.set(userRef, {
+        'isDeleted': true,
+        'deletedAt': now,
+        'deletedBy': trimmedAdmin,
+      }, SetOptions(merge: true));
+      transaction.set(progressRef, {
+        'isDeleted': true,
+        'deletedAt': now,
+        'deletedBy': trimmedAdmin,
+      }, SetOptions(merge: true));
+    });
+  }
+
   String _generateInviteCode() {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     final first = List.generate(
@@ -214,9 +275,19 @@ class AdminRepository {
       for (final doc in snapshot.docs) {
         cursor = doc;
         final data = doc.data();
-        final role = AppRoleX.fromValue(data['role'] as String? ?? 'student');
+        if (data['isDeleted'] == true) {
+          continue;
+        }
+        final normalized = Map<String, dynamic>.from(data);
+        final docUid = (normalized['uid'] as String? ?? '').trim();
+        if (docUid.isEmpty) {
+          normalized['uid'] = doc.id;
+        }
+        final role = AppRoleX.fromValue(
+          normalized['role'] as String? ?? 'student',
+        );
         if (role == roleFilter) {
-          users.add(AppUser.fromMap(data));
+          users.add(AppUser.fromMap(normalized));
         }
         if (users.length >= limit) {
           reachedLimit = true;
@@ -238,6 +309,20 @@ class AdminRepository {
     }
 
     return AdminUsersPage(users: users, lastDoc: cursor, hasMore: hasMore);
+  }
+
+  AppUser? _mapActiveUserFromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
+    final rawMap = doc.data();
+    if (rawMap == null || rawMap['isDeleted'] == true) {
+      return null;
+    }
+
+    final map = Map<String, dynamic>.from(rawMap);
+    final uid = (map['uid'] as String? ?? '').trim();
+    if (uid.isEmpty) {
+      map['uid'] = doc.id;
+    }
+    return AppUser.fromMap(map);
   }
 }
 
