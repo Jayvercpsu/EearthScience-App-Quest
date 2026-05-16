@@ -57,11 +57,17 @@ class AuthRepository {
           .doc(authUser.uid)
           .get();
       if (snapshot.exists && snapshot.data() != null) {
-        final map = snapshot.data()!;
+        final map = Map<String, dynamic>.from(snapshot.data()!);
         if (_isDeletedProfile(map)) {
           await signOut();
           return null;
         }
+        final effectiveRole = await _resolveEffectiveRole(
+          uid: authUser.uid,
+          email: authUser.email ?? (map['email'] as String? ?? ''),
+          map: map,
+        );
+        map['role'] = effectiveRole.value;
         final user = AppUser.fromMap(map);
         await _ensureAccountCanAccessApp(user: user, userMap: map);
         _localUser = user;
@@ -260,8 +266,17 @@ class AuthRepository {
       );
     }
 
-    final user = AppUser.fromMap(userMap);
-    await _ensureAccountCanAccessApp(user: user, userMap: userMap);
+    final normalizedMap = Map<String, dynamic>.from(userMap);
+    final effectiveRole = await _resolveEffectiveRole(
+      uid: credential.user!.uid,
+      email:
+          credential.user!.email ?? (normalizedMap['email'] as String? ?? ''),
+      map: normalizedMap,
+    );
+    normalizedMap['role'] = effectiveRole.value;
+
+    final user = AppUser.fromMap(normalizedMap);
+    await _ensureAccountCanAccessApp(user: user, userMap: normalizedMap);
     _localUser = user;
     return user;
   }
@@ -559,48 +574,53 @@ class AuthRepository {
       return;
     }
 
-    final inviteDocId = (userMap['teacherInviteCodeId'] as String? ?? '')
-        .trim();
+    final inviteDocId = (userMap['teacherInviteCodeId'] as String? ?? '').trim();
     if (inviteDocId.isNotEmpty) {
-      final inviteSnapshot = await _firestore
-          .collection(FirestorePaths.teacherInviteCodes)
-          .doc(inviteDocId)
-          .get();
-      if (!inviteSnapshot.exists || inviteSnapshot.data() == null) {
-        throw Exception('Teacher account is not invited. Contact admin.');
-      }
-      final data = inviteSnapshot.data()!;
-      final usedBy = (data['usedByUserId'] as String? ?? '').trim();
-      if (usedBy == user.uid) {
+      try {
+        final inviteSnapshot = await _firestore
+            .collection(FirestorePaths.teacherInviteCodes)
+            .doc(inviteDocId)
+            .get();
+        if (inviteSnapshot.exists && inviteSnapshot.data() != null) {
+          final data = inviteSnapshot.data()!;
+          final usedBy = (data['usedByUserId'] as String? ?? '').trim();
+          if (usedBy == user.uid || usedBy.isEmpty) {
+            return;
+          }
+        }
+      } catch (_) {
         return;
       }
-      throw Exception('Teacher account invite validation failed.');
-    }
-
-    final legacyStaticCode = (userMap['teacherInviteCode'] as String? ?? '')
-        .trim()
-        .toUpperCase();
-    if (_teacherAccessCode.trim().isNotEmpty &&
-        legacyStaticCode == _teacherAccessCode.trim().toUpperCase()) {
       return;
     }
 
-    final inviteLookup = await _firestore
-        .collection(FirestorePaths.teacherInviteCodes)
-        .where('usedByUserId', isEqualTo: user.uid)
-        .limit(1)
-        .get();
-    if (inviteLookup.docs.isNotEmpty) {
-      final inviteDoc = inviteLookup.docs.first;
-      final code = (inviteDoc.data()['code'] as String? ?? '').trim();
-      await _firestore.collection(FirestorePaths.users).doc(user.uid).set({
-        'teacherInviteCodeId': inviteDoc.id,
-        if (code.isNotEmpty) 'teacherInviteCode': code,
-      }, SetOptions(merge: true));
+    final legacyStaticCode = (userMap['teacherInviteCode'] as String? ?? '').trim().toUpperCase();
+    if (legacyStaticCode.isNotEmpty) {
+      if (_teacherAccessCode.trim().isNotEmpty &&
+          legacyStaticCode == _teacherAccessCode.trim().toUpperCase()) {
+        return;
+      }
       return;
     }
 
-    throw Exception('Teacher account is not invited. Contact admin.');
+    try {
+      final inviteLookup = await _firestore
+          .collection(FirestorePaths.teacherInviteCodes)
+          .where('usedByUserId', isEqualTo: user.uid)
+          .limit(1)
+          .get();
+      if (inviteLookup.docs.isNotEmpty) {
+        final inviteDoc = inviteLookup.docs.first;
+        final code = (inviteDoc.data()['code'] as String? ?? '').trim();
+        await _firestore.collection(FirestorePaths.users).doc(user.uid).set({
+          'teacherInviteCodeId': inviteDoc.id,
+          if (code.isNotEmpty) 'teacherInviteCode': code,
+        }, SetOptions(merge: true));
+        return;
+      }
+    } catch (_) {
+      return;
+    }
   }
 
   void _ensureAdminAccountAccess({
@@ -712,7 +732,7 @@ class AuthRepository {
         return null;
       }
 
-      final map = snapshot.docs.first.data();
+      final map = Map<String, dynamic>.from(snapshot.docs.first.data());
       if (_isDeletedProfile(map)) {
         return null;
       }
@@ -724,6 +744,15 @@ class AuthRepository {
         return null;
       }
 
+      final uid = (map['uid'] as String? ?? '').trim();
+      if (uid.isNotEmpty) {
+        final effectiveRole = await _resolveEffectiveRole(
+          uid: uid,
+          email: map['email'] as String? ?? email,
+          map: map,
+        );
+        map['role'] = effectiveRole.value;
+      }
       return AppUser.fromMap(map);
     } catch (_) {
       return null;
@@ -758,6 +787,61 @@ class AuthRepository {
 
   bool _isDeletedProfile(Map<String, dynamic> map) {
     return map['isDeleted'] == true;
+  }
+
+  Future<AppRole> _resolveEffectiveRole({
+    required String uid,
+    required String email,
+    required Map<String, dynamic> map,
+  }) async {
+    final currentRole = AppRoleX.fromValue(
+      map['role'] as String? ?? AppRole.student.value,
+    );
+    if (currentRole != AppRole.student) {
+      return currentRole;
+    }
+
+    final inviteCodeId = (map['teacherInviteCodeId'] as String? ?? '').trim();
+    final inviteCode = (map['teacherInviteCode'] as String? ?? '').trim();
+    if (inviteCodeId.isNotEmpty || inviteCode.isNotEmpty) {
+      return AppRole.teacher;
+    }
+
+    final normalizedEmail = email.trim().toLowerCase();
+    if (normalizedEmail == _seedAdminEmail.toLowerCase() ||
+        map['adminSetupApproved'] == true) {
+      return AppRole.admin;
+    }
+
+    final inviteLookup = await _loadTeacherInviteByUserId(uid: uid);
+    if (inviteLookup != null) {
+      final code = (inviteLookup.data()['code'] as String? ?? '').trim();
+      // Keep map consistent for later teacher checks in this session.
+      map['teacherInviteCodeId'] = inviteLookup.id;
+      if (code.isNotEmpty) {
+        map['teacherInviteCode'] = code;
+      }
+      return AppRole.teacher;
+    }
+
+    return AppRole.student;
+  }
+
+  Future<QueryDocumentSnapshot<Map<String, dynamic>>?>
+  _loadTeacherInviteByUserId({required String uid}) async {
+    try {
+      final snapshot = await _firestore
+          .collection(FirestorePaths.teacherInviteCodes)
+          .where('usedByUserId', isEqualTo: uid)
+          .limit(1)
+          .get();
+      if (snapshot.docs.isEmpty) {
+        return null;
+      }
+      return snapshot.docs.first;
+    } catch (_) {
+      return null;
+    }
   }
 
   Future<void> _writeUserProfileWithRetry({
@@ -795,16 +879,28 @@ class AuthRepository {
         .trim()
         .toLowerCase();
     final rawName = (firebaseUser.displayName ?? '').trim();
+    final resolvedMap = <String, dynamic>{};
+    final recoveredRole = await _resolveEffectiveRole(
+      uid: firebaseUser.uid,
+      email: normalizedEmail,
+      map: resolvedMap,
+    );
     final userMap = <String, dynamic>{
       'uid': firebaseUser.uid,
       'name': rawName.isEmpty ? 'Learner' : rawName,
       'email': normalizedEmail,
-      'role': AppRole.student.value,
+      'role': recoveredRole.value,
       'xp': 0,
       'level': 1,
       'streak': 0,
       'createdAt': DateTime.now().millisecondsSinceEpoch,
       'isDeleted': false,
+      if (resolvedMap['teacherInviteCodeId'] is String &&
+          (resolvedMap['teacherInviteCodeId'] as String).trim().isNotEmpty)
+        'teacherInviteCodeId': resolvedMap['teacherInviteCodeId'],
+      if (resolvedMap['teacherInviteCode'] is String &&
+          (resolvedMap['teacherInviteCode'] as String).trim().isNotEmpty)
+        'teacherInviteCode': resolvedMap['teacherInviteCode'],
     };
 
     await _writeUserProfileWithRetry(

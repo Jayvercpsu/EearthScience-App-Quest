@@ -174,58 +174,6 @@ class AdminRepository {
         }, SetOptions(merge: true));
   }
 
-  Future<void> softDeleteUser({
-    required String targetUserId,
-    required String adminUserId,
-  }) async {
-    final trimmedTarget = targetUserId.trim();
-    final trimmedAdmin = adminUserId.trim();
-    if (trimmedTarget.isEmpty) {
-      throw Exception('User id is required.');
-    }
-    if (trimmedTarget == trimmedAdmin) {
-      throw Exception('You cannot delete your own admin account.');
-    }
-
-    final userRef = _firestore
-        .collection(FirestorePaths.users)
-        .doc(trimmedTarget);
-    final progressRef = _firestore
-        .collection(FirestorePaths.progress)
-        .doc(trimmedTarget);
-
-    await _firestore.runTransaction((transaction) async {
-      final userSnapshot = await transaction.get(userRef);
-      if (!userSnapshot.exists || userSnapshot.data() == null) {
-        throw Exception('User profile not found.');
-      }
-
-      final currentMap = userSnapshot.data()!;
-      if (currentMap['isDeleted'] == true) {
-        return;
-      }
-
-      final role = AppRoleX.fromValue(
-        currentMap['role'] as String? ?? 'student',
-      );
-      if (role == AppRole.admin) {
-        throw Exception('Deleting admin accounts is disabled.');
-      }
-
-      final now = DateTime.now().millisecondsSinceEpoch;
-      transaction.set(userRef, {
-        'isDeleted': true,
-        'deletedAt': now,
-        'deletedBy': trimmedAdmin,
-      }, SetOptions(merge: true));
-      transaction.set(progressRef, {
-        'isDeleted': true,
-        'deletedAt': now,
-        'deletedBy': trimmedAdmin,
-      }, SetOptions(merge: true));
-    });
-  }
-
   String _generateInviteCode() {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     final first = List.generate(
